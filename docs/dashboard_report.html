@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modular RAG Dashboard Report</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --border: #334155;
+    --accent: #38bdf8;
+    --accent2: #818cf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --purple: #c084fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Sidebar nav ── */
+  nav {
+    position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 1rem 0; z-index: 100;
+  }
+  nav h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 0 1rem 0.5rem; }
+  nav a { display: block; padding: 0.6rem 1rem; color: var(--text); font-size: 0.9rem; border-left: 3px solid transparent; }
+  nav a:hover { background: rgba(255,255,255,0.05); text-decoration: none; }
+  nav a.active { border-left-color: var(--accent); background: rgba(56,189,248,0.1); color: var(--accent); }
+
+  /* ── Main content ── */
+  main { margin-left: 220px; padding: 2rem 3rem 4rem; max-width: 1100px; }
+
+  section { margin-bottom: 4rem; }
+  h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.25rem; color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.2rem; font-weight: 600; margin: 2rem 0 1rem; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1rem; font-weight: 600; color: var(--accent2); margin: 1rem 0 0.5rem; }
+
+  /* ── Cards ── */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.2rem; transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card h4 { font-size: 0.95rem; margin-bottom: 0.4rem; }
+  .card p { font-size: 0.8rem; color: var(--muted); margin: 0.2rem 0; }
+  .card .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 99px; font-size: 0.7rem; background: rgba(56,189,248,0.15); color: var(--accent); }
+
+  /* ── Metric tiles ── */
+  .metric-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .metric {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.8rem 1.4rem; text-align: center; min-width: 120px;
+  }
+  .metric .val { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .metric .lbl { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ── Tables ── */
+  .tbl { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin: 0.5rem 0; }
+  .tbl th { text-align: left; padding: 0.5rem 0.8rem; background: rgba(255,255,255,0.04); color: var(--accent); border-bottom: 1px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tbl td { padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; }
+  .tbl tr:hover td { background: rgba(255,255,255,0.02); }
+  .tbl code { font-size: 0.75rem; color: var(--purple); background: rgba(192,132,252,0.1); padding: 0.1rem 0.3rem; border-radius: 3px; }
+
+  /* ── Expanders (collapsed by default) ── */
+  details { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin: 0.5rem 0; overflow: hidden; }
+  summary { padding: 0.7rem 1rem; cursor: pointer; font-weight: 600; font-size: 0.9rem; list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+  summary::-webkit-details-marker { display: none; }
+  summary:before { content: "▸"; transition: transform 0.2s; }
+  details[open] summary:before { transform: rotate(90deg); }
+  details[open] { border-color: var(--accent); }
+  details .inner { padding: 0.8rem 1rem 1rem; border-top: 1px solid var(--border); }
+
+  /* ── Code / text blocks ── */
+  pre, .text-block {
+    background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.8rem; font-size: 0.8rem;
+    font-family: 'Consolas', monospace; white-space: pre-wrap;
+    word-break: break-word; max-height: 250px; overflow-y: auto; color: #d1d5db;
+  }
+
+  /* ── Alerts ── */
+  .info-box { padding: 0.8rem 1rem; border-radius: 6px; font-size: 0.85rem; margin: 0.5rem 0; border-left: 3px solid; }
+  .info-box.info { background: rgba(56,189,248,0.08); border-color: var(--accent); color: #7dd3fc; }
+  .info-box.warn { background: rgba(251,191,36,0.08); border-color: var(--yellow); color: #fcd34d; }
+  .info-box.success { background: rgba(74,222,128,0.08); border-color: var(--green); color: #86efac; }
+
+  /* ── Charts (text-based) ── */
+  .bar-chart { margin: 0.5rem 0; }
+  .bar-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; margin: 0.3rem 0; }
+  .bar-label { width: 120px; flex-shrink: 0; color: var(--muted); }
+  .bar-track { flex: 1; background: rgba(255,255,255,0.05); border-radius: 3px; height: 16px; }
+  .bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.4s; }
+  .bar-val { width: 60px; text-align: right; color: var(--text); font-size: 0.75rem; }
+
+  /* ── Footer ── */
+  footer { text-align: center; color: var(--muted); font-size: 0.75rem; padding: 2rem; border-top: 1px solid var(--border); margin-left: 220px; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<nav>
+  <h2>Pages</h2>
+  <a href="#overview">📊 System Overview</a>
+  <a href="#data-browser">🔍 Data Browser</a>
+  <a href="#ingestion-manager">📥 Ingestion Manager</a>
+  <a href="#ingestion-traces">🔬 Ingestion Traces</a>
+  <a href="#query-traces">🔎 Query Traces</a>
+  <a href="#evaluation-panel">📏 Evaluation Panel</a>
+</nav>
+
+<!-- ── Main ── -->
+<main>
+
+
+<section id="overview">
+  <h1>📊 System Overview</h1>
+  <p class="subtitle">Component configuration, collection statistics, and trace metrics</p>
+
+  <h2>🔧 Component Configuration</h2>
+  <div class="card-grid">
+
+    <div class="card">
+      <h4>🔗 LLM</h4>
+      <p><span class="badge">deepseek</span></p>
+      <p>Model: <code>deepseek-v4-flash</code></p>
+      <p>temperature: <code>0.0</code></p><p>max_tokens: <code>4096</code></p>
+    </div>
+
+    <div class="card">
+      <h4>🔗 Embedding</h4>
+      <p><span class="badge">huggingface</span></p>
+      <p>Model: <code>all-MiniLM-L6-v2</code></p>
+      <p>dimensions: <code>384</code></p>
+    </div>
+
+    <div class="card">
+      <h4>🔗 Vector Store</h4>
+      <p><span class="badge">chroma</span></p>
+      <p>Model: <code>knowledge_hub</code></p>
+      <p>persist_directory: <code>./data/db/chroma</code></p>
+    </div>
+
+    <div class="card">
+      <h4>🔗 Retrieval</h4>
+      <p><span class="badge">hybrid</span></p>
+      <p>Model: <code>dense + sparse + RRF</code></p>
+      <p>dense_top_k: <code>20</code></p><p>sparse_top_k: <code>20</code></p><p>fusion_top_k: <code>10</code></p>
+    </div>
+
+    <div class="card">
+      <h4>🔗 Reranker</h4>
+      <p><span class="badge">disabled</span></p>
+      <p>Model: <code>-</code></p>
+      <p>enabled: <code>False</code></p><p>top_k: <code>5</code></p>
+    </div>
+
+    <div class="card">
+      <h4>🔗 Ingestion</h4>
+      <p><span class="badge">recursive</span></p>
+      <p>Model: <code>-</code></p>
+      <p>chunk_size: <code>1000</code></p><p>chunk_overlap: <code>200</code></p><p>batch_size: <code>100</code></p>
+    </div>
+
+  </div>
+
+  <h2>📁 Collection Statistics</h2>
+  <div class="metric-row">
+
+    <div class="metric">
+      <div class="val">0</div>
+      <div class="lbl">default</div>
+    </div>
+
+    <div class="metric">
+      <div class="val">1,180</div>
+      <div class="lbl">knowledge_hub</div>
+    </div>
+
+  </div>
+
+  <h2>📈 Trace Statistics</h2>
+  <div class="metric-row">
+    <div class="metric">
+      <div class="val">0</div>
+      <div class="lbl">Total Traces</div>
+    </div>
+    <div class="metric">
+      <div class="val">3</div>
+      <div class="lbl">Ingestion Traces</div>
+    </div>
+    <div class="metric">
+      <div class="val">25</div>
+      <div class="lbl">Query Traces</div>
+    </div>
+  </div>
+
+  <h2>⏱️ Latest Ingestion Pipeline — Stage Timing Waterfall</h2>
+  <div class="bar-chart">
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:34%"></div></div>
+      <div class="bar-val">43687.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">31.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">172.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+      <div class="bar-val">0.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+      <div class="bar-val">127875.0 ms</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-label">?</div>
+      <div class="bar-track"><div class="bar-fill" style="width:10%"></div></div>
+      <div class="bar-val">14016.0 ms</div>
+    </div>
+  </div>
+
+</section>
+
+<section id="data-browser">
+  <h1>🔍 Data Browser</h1>
+  <p class="subtitle">Browse ingested documents, chunks, and images</p>
+
+  <h2>Available Collections</h2>
+  <p><span class="badge">default</span> <span class='badge'>knowledge_hub</span></p>
+
+  <h2>📄 Documents</h2>
+<p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem">1 document(s) found</p>
+<table class="tbl"><thead><tr><th>Source</th><th>Collection</th><th>Chunks</th><th>Images</th><th>Processed</th></tr></thead><tbody>
+<tr>
+  <td><code>dlbook_cn_v0.5-beta.pdf</code></td>
+  <td><span class="badge">knowledge_hub</span></td>
+  <td>2,364</td>
+  <td>0</td>
+  <td>2026-05-30T12:20:20</td>
+</tr>
+</tbody></table>
+
+  <h2>📦 Sample Chunks (first 5 + last 5)</h2>
+  <p class="info-box info" style="margin-bottom:1rem">Showing 10 of 2,364 total chunks for readability</p>
+
+<details>
+  <summary>Chunk 1 — <code>4f_0000_a479520a</code> · 23 chars</summary>
+  <div class="inner">
+    <pre>深度学习
+2017 年 9 月 4 日
+
+ii</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;refined_by&quot;: &quot;rule&quot;,
+  &quot;chunk_index&quot;: 0,
+  &quot;text&quot;: &quot;深度学习\n2017 年 9 月 4 日\n\nii&quot;,
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;image_refs&quot;: &quot;&quot;,
+  &quot;summary&quot;: &quot;深度学习\n2017 年 9 月 4 日\n\nii&quot;,
+  &quot;enriched_by&quot;: &quot;rule&quot;,
+  &quot;source_ref&quot;: &quot;doc_efb3830e695414df&quot;,
+  &quot;title&quot;: &quot;深度学习&quot;,
+  &quot;doc_type&quot;: &quot;pdf&quot;,
+  &quot;source_path&quot;: &quot;C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf&quot;,
+  &quot;tags&quot;: &quot;&quot;,
+  &quot;chunk_id&quot;: &quot;6eca2e4f_0000_a479520a&quot;
+}</pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 2 — <code>4f_0001_a3e8d6ae</code> · 730 chars</summary>
+  <div class="inner">
+    <pre>目录
+xvi
+致谢
+| 网站 | | | | | xxii |
+| ---- | --- | --- | --- | --- | ----- |
+| 数学符号 | | | | | xxiii |
+| 第一章 | 引言 | | | | 1 |
+1.1 本书面向的读者 . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+1.2 深度学习的历史趋势 . . . . . . . . . . . . . . . . . . . . . . . 11
+| | 1.2.1 神经网络的众多名称和命运变迁 | | . . . | . . . . . . | . . 12 |
+| --- | -------------------- | ------- | ------------- | ----------- | ------ |
+| | 1.2.2 | . . . . | . . . . . . . | . . . . . . | . . 17 |
+与日俱增的数据量
+| | 1.2.3 与日俱增的模型规模 | . . . | . . . . . . . | . . . . . . | . . 19 |
+| ---- | -------------------------- | --------- | ------------- | ----------- | ------ |
+| | 1.2.4 与日俱增的精度、复杂度和对现实世界的冲击 | | | . . | . . 22 |
+| 第一部分 | 应用数学与机器学习基础 | | | | 25 |
+| 第二章 | 线性代数 | | | | 27 |</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;title&quot;: &quot;目录&quot;,
+  &quot;chunk_index&quot;: 1,
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;summary&quot;: &quot;目录\nxvi\n致谢\n| 网站 | | | | | xxii |\n| ---- | --- | --- | --- | --- | ----- |\n| 数学符号 | | | | | xxiii |\n| 第一章 | 引言 | | | | 1 |\n1.1 本书面向的读者 . . .&quot;,
+  &quot;source_path&quot;: &quot;C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf&quot;,
+  &quot;enriched_by&quot;: &quot;rule&quot;,
+  &quot;image_refs&quot;: &quot;&quot;,
+  &quot;chunk_id&quot;: &quot;6eca2e4f_0001_a3e8d6ae&quot;,
+  &quot;tags&quot;: &quot;&quot;,
+  &quot;refined_by&quot;: &quot;rul</pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 3 — <code>4f_0002_e2f0cb34</code> · 535 chars</summary>
+  <div class="inner">
+    <pre>| 第一部分 | 应用数学与机器学习基础 | | | | 25 |
+| 第二章 | 线性代数 | | | | 27 |
+| | 2.1 标量、向量、矩阵和张量 | . . . . . | . . . . . . . | . . . . . . | . . 27 |
+2.2 矩阵和向量相乘 . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+2.3 单位矩阵和逆矩阵 . . . . . . . . . . . . . . . . . . . . . . . . 31
+2.4 线性相关和生成子空间 . . . . . . . . . . . . . . . . . . . . . . 32
+2.5 范数 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+2.6 特殊类型的矩阵和向量 . . . . . . . . . . . . . . . . . . . . . . 36
+2.7 特征分解 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37
+iii</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;enriched_by&quot;: &quot;rule&quot;,
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;tags&quot;: &quot;&quot;,
+  &quot;source_ref&quot;: &quot;doc_efb3830e695414df&quot;,
+  &quot;text&quot;: &quot;| 第一部分 | 应用数学与机器学习基础 | | | | 25 |\n| 第二章 | 线性代数 | | | | 27 |\n| | 2.1 标量、向量、矩阵和张量 | . . . . . | . . . . . . . | . . . . . . | . . 27 |\n2.2 矩阵和向量相乘 . . . . . . . . . . . . . . . . . . . . . . . . . . 29\n2.3 单位矩阵和逆矩阵 . . . . . . . . . . . . . . . . . . . . . . . . 31\n2.4 线性相关和生成子空间 . . . . . . . . . . . . . . . . . . . . . </pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 4 — <code>4f_0003_63028988</code> · 865 chars</summary>
+  <div class="inner">
+    <pre>| iv | | | | | | | 目录 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+2.8 奇异值分解 . . . . . . . . . . . . . . . . . . . . . . . . . . . . 39
+2.9 Moore-Penrose 伪逆 . . . . . . . . . . . . . . . . . . . . . . . 40
+2.10 迹运算 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 41
+2.11 行列式 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42
+2.12 实例：主成分分析 . . . . . . . . . . . . . . . . . . . . . . . . 42
+| 第三章 | 概率与信息论 | | | | | | 47 |
+| --- | ------ | --- | --- | --- | --- | --- | --- |
+3.1 为什么要使用概率？ . . . . . . . . . . . . . . . . . . . . . . . 47
+3.2 随机变量 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 49
+3.3 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 50
+概率分布
+| | | 3.3.1 离散型变量和概率质量函数 | | | . . | . . . . . . . | . . . . . 50 |
+| --- | --- | ----</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;chunk_id&quot;: &quot;6eca2e4f_0003_63028988&quot;,
+  &quot;source_ref&quot;: &quot;doc_efb3830e695414df&quot;,
+  &quot;chunk_index&quot;: 3,
+  &quot;text&quot;: &quot;| iv | | | | | | | 目录 |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n2.8 奇异值分解 . . . . . . . . . . . . . . . . . . . . . . . . . . . . 39\n2.9 Moore-Penrose 伪逆 . . . . . . . . . . . . . . . . . . . . . . . 40\n2.10 迹运算 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 41\n2.11 行列式 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42\n2.12 实例：主成分分析 . . . </pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 5 — <code>4f_0004_09df1b23</code> · 895 chars</summary>
+  <div class="inner">
+    <pre>概率分布
+| | | 3.3.1 离散型变量和概率质量函数 | | | . . | . . . . . . . | . . . . . 50 |
+| --- | --- | ------------------ | --- | --- | --- | ------------- | ------------ |
+| | | 3.3.2 连续型变量和概率密度函数 | | | . . | . . . . . . . | . . . . . 51 |
+3.4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 52
+边缘概率
+3.5 条件概率 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 52
+3.6 条件概率的链式法则 . . . . . . . . . . . . . . . . . . . . . . . 53
+| | 3.7 | | | . . . . | . . . . . . . | . . . . . . . | . . . . . 53 |
+| --- | --- | --- | --- | ------- | ------------- | ------------- | ------------ |
+独立性和条件独立性
+3.8 期望、方差和协方差 . . . . . . . . . . . . . . . . . . . . . . . 54
+3.9 常用概率分布 . . . . . . . . . . . . . . . . . . . . . . . . . . . 55
+| | | 3.9.1 Bernoulli | | . . | . . . . . . . | . . . . . . . | . . . . . 56 </pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;chunk_id&quot;: &quot;6eca2e4f_0004_09df1b23&quot;,
+  &quot;source_path&quot;: &quot;C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf&quot;,
+  &quot;text&quot;: &quot;概率分布\n| | | 3.3.1 离散型变量和概率质量函数 | | | . . | . . . . . . . | . . . . . 50 |\n| --- | --- | ------------------ | --- | --- | --- | ------------- | ------------ |\n| | | 3.3.2 连续型变量和概率密度函数 | | | . . | . . . . . . . | . . . . . 51 |\n3.4 . . . . . . . . . . . . . . . . . </pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 6 — <code>4f_2359_ad37c5dd</code> · 861 chars</summary>
+  <div class="inner">
+    <pre>术语 709
+| | universal | | approximation | theorem | | 171, 172, 434 |
+| --- | --------- | --- | ------------- | ------- | --- | ------------- |
+万能近似定理
+| 万能近似器 | universal | approximator | | 60, | 471, 472, | 560 |
+| ------------- | --------- | ------------ | -------- | ------------ | --------- | --- |
+| 万能函数近似器 | | universal | function | approximator | | 151 |
+| 未标注 unlabeled | | 450, 454, | 455, | 459, 461, | 463, 472 | |
+未归一化概率函数 unnormalized probability function 483, 484, 486, 493
+| 非共享卷积 | unshared | convolution | | 299 | | |
+| ----- | -------- | ----------- | --- | --- | --- | --- |
+无监督 unsupervised 20, 21, 92, 210, 218, 228, 363, 391, 415, 423, 425, 440, 447, 449–453, 455,
+| 458, | 459, 462, | 463 | | | | |
+| ---- | --------- | --- | --- | --- | --- | --- |
+无监督学习 unsupervised learning</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;title&quot;: &quot;术语 709&quot;,
+  &quot;chunk_index&quot;: 2359,
+  &quot;image_refs&quot;: &quot;&quot;,
+  &quot;chunk_id&quot;: &quot;6eca2e4f_2359_ad37c5dd&quot;,
+  &quot;source_path&quot;: &quot;C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf&quot;,
+  &quot;tags&quot;: &quot;&quot;,
+  &quot;enriched_by&quot;: &quot;rule&quot;,
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;source_ref&quot;: &quot;doc_efb3830e695414df&quot;,
+  &quot;doc_type&quot;: &quot;pdf&quot;,
+  &quot;refined_by&quot;: &quot;rule&quot;,
+  &quot;summary&quot;: &quot;术语 709\n| | universal | | approximation | theorem | | 171, 172, 434 |\n| ---</pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 7 — <code>4f_2360_c0ac8eb9</code> · 688 chars</summary>
+  <div class="inner">
+    <pre>| 458, | 459, 462, | 463 | | | | |
+| ---- | --------- | --- | --- | --- | --- | --- |
+无监督学习 unsupervised learning 87, 92–94, 107, 128, 134, 207, 210, 211, 234, 236, 363, 391,
+| 415, | 432, 443, | 450–455, | | 457, 458, 462–464, | | 529, 610 |
+| -------------- | ------------ | ------------ | ----------- | ------------------ | ------------ | -------- |
+| 无监督学习算法 | | unsupervised | | learning algorithm | | 92 |
+| 无监督预训练 | unsupervised | | pretraining | | 450, 452–457 | |
+| 有效 valid | 284, 297, | 298 | | | | |
+| 验证集 validation | | set 106, | 237, | 242, 259, | 368–370, | 455 |
+梯度消失与爆炸问题 vanishing and exploding gradient problem 247, 248, 259
+| 梯度消失 | vanishing | gradient | 248 | | | |</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;tags&quot;: &quot;&quot;,
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;chunk_id&quot;: &quot;6eca2e4f_2360_c0ac8eb9&quot;,
+  &quot;enriched_by&quot;: &quot;rule&quot;,
+  &quot;chunk_index&quot;: 2360,
+  &quot;image_refs&quot;: &quot;&quot;,
+  &quot;source_ref&quot;: &quot;doc_efb3830e695414df&quot;,
+  &quot;summary&quot;: &quot;| 458, | 459, 462, | 463 | | | | |\n| ---- | --------- | --- | --- | --- | --- | --- |\n无监督学习 unsupervised learning 87, 92–94, 107, 128, 134, 207, 210, 211, 234, 236, 363, 391,\n| 415, | 432, 443, | 450–455, | | 457, 458, 462–464, | | 529, </pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 8 — <code>4f_2361_c28fd8ca</code> · 790 chars</summary>
+  <div class="inner">
+    <pre>梯度消失与爆炸问题 vanishing and exploding gradient problem 247, 248, 259
+| 梯度消失 | vanishing | gradient | 248 | | | |
+| ---- | --------- | -------- | --- | --- | --- | --- |
+Vapnik-Chervonenkis 维度 Vapnik-Chervonenkis dimension 100, 467, 470
+| 变量消去 | variable | elimination | | 547 | | |
+| ----------- | -------- | ----------- | ---- | -------- | --------- | --- |
+| 方差 variance | 54, | 56, 57, | 111, | 197–199, | 202, 206, | 220 |
+| 方差减小 | variance | reduction | 589, | 590 | | |
+变分自编码器 variational auto-encoder 195, 431, 506, 558, 592, 594–597, 600, 606
+| | variational | derivative | | 551 | | |
+| --- | ----------- | ---------- | --- | --- | --- | --- |
+变分导数
+| 变分自由能 | variational | | free energy | 539 | | |
+| ---------------- | ----------- | ----------- | ----------- | --------- | --- | --- |</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;source_path&quot;: &quot;C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf&quot;,
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;text&quot;: &quot;梯度消失与爆炸问题 vanishing and exploding gradient problem 247, 248, 259\n| 梯度消失 | vanishing | gradient | 248 | | | |\n| ---- | --------- | -------- | --- | --- | --- | --- |\nVapnik-Chervonenkis 维度 Vapnik-Chervonenkis dimension 100, 467, 470\n| 变量消去 | variable | elimination | | 547 | | |\n| ----------- | --------</pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 9 — <code>4f_2362_b938ec19</code> · 452 chars</summary>
+  <div class="inner">
+    <pre>变分导数
+| 变分自由能 | variational | | free energy | 539 | | |
+| ---------------- | ----------- | ----------- | ----------- | --------- | --- | --- |
+| 变分推断 | variational | inference | | 497, 499, | 526 | |
+| 去噪 denoise | 128, | 386 | | | | |
+| 向量 vector | 27 | | | | | |
+| 虚拟对抗样本 | virtual | adversarial | | example | 231 | |
+| 虚拟对抗训练 | virtual | adversarial | | training | 452 | |
+| 可见层 visible | layer | 5 | | | | |
+| V-结构 V-structure | | 489, | 539 | | | |</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;title&quot;: &quot;变分导数&quot;,
+  &quot;image_refs&quot;: &quot;&quot;,
+  &quot;source_ref&quot;: &quot;doc_efb3830e695414df&quot;,
+  &quot;chunk_id&quot;: &quot;6eca2e4f_2362_b938ec19&quot;,
+  &quot;refined_by&quot;: &quot;rule&quot;,
+  &quot;source_path&quot;: &quot;C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf&quot;,
+  &quot;doc_hash&quot;: &quot;efb3830e695414df6540c6d2f7d367f994b9d8be2fc3b1a25898bc6635d40928&quot;,
+  &quot;tags&quot;: &quot;&quot;,
+  &quot;summary&quot;: &quot;变分导数\n| 变分自由能 | variational | | free energy | 539 | | |\n| ---------------- | ----------- | ----------- | ----------- | --------- | --- | --- |\n| </pre>
+  </div>
+</details>
+
+<details>
+  <summary>Chunk 10 — <code>4f_2363_fc8f652f</code> · 696 chars</summary>
+  <div class="inner">
+    <pre>710 术语
+醒眠 wake sleep 557, 565, 592
+warp warp 380, 383
+支持向量机 support vector machine 123–125, 153, 310, 367, 522
+无向图模型 undirected graphical model 516, 531
+权重 weight 94
+权重衰减 weight decay 104–106, 199–202, 205, 206, 209, 213, 215, 217, 218, 227, 228, 243, 258,
+274, 364–367, 432, 454, 524, 544
+权重比例推断规则 weight scaling inference rule 226–229
+权重空间对称性 weight space symmetry 243
+条件概率分布 conditional probability distribution 534
+白化 whitening 388
+宽度 width 146
+赢者通吃 winner-take-all 161
+正切传播 tangent propagation 474
+流形正切分类器 manifold tangent classifier 474
+词嵌入 word embedding 363, 395, 404, 406, 408, 454, 459
+词义消歧 word-sense disambiguation 412
+零数据学习 zero-data learning 459, 461
+零次学习 zero-shot learning 459–461</pre>
+    <h3>Metadata</h3>
+    <pre>{
+  &quot;chunk_index&quot;: 2363,
+  &quot;tags&quot;: &quot;&quot;,
+  &quot;summary&quot;: &quot;710 术语\n醒眠 wake sleep 557, 565, 592\nwarp warp 380, 383\n支持向量机 support vector machine 123–125, 153, 310, 367, 522\n无向图模型 undirected graphical model 516, 531\n权重 weight 94\n权重衰减 weight decay 104–106, 199–202, 205, 206, 209, 213, 215, 217, 218, 227, 228, 243, 258,\n274, 364–367, 432, 454, 524, 544\n权重比例推断规则 weight scaling inference rule 226–229\n权重空间对称性 weight space symmetry 243\n条件概率分布 conditional probability distribution 534\n白化 whitening 388\</pre>
+  </div>
+</details>
+
+</section>
+
+<section id="ingestion-manager">
+  <h1>📥 Ingestion Manager</h1>
+  <p class="subtitle">Upload files, trigger ingestion, manage documents</p>
+
+  <h2>📤 Upload &amp; Ingest</h2>
+  <div class="info-box info">
+    <strong>Upload a file</strong> (PDF, TXT, MD, DOCX) → Select collection → Click <strong>🚀 Start Ingestion</strong>
+  </div>
+
+  <h2>🗑️ Manage Documents</h2>
+
+<div class="card" style="margin:0.5rem 0">
+  <h4>📄 dlbook_cn_v0.5-beta.pdf</h4>
+  <p>Collection: <span class="badge">knowledge_hub</span> · Chunks: 2,364 · Images: 0</p>
+  <p style="margin-top:0.5rem; font-size:0.75rem; color:var(--muted)">
+    Hash: <code>efb3830e695414df6540c6d2f7d367f9…</code> · Processed: 2026-05-30T12:20:20
+  </p>
+</div>
+
+</section>
+
+<section id="ingestion-traces">
+  <h1>🔬 Ingestion Traces</h1>
+  <p class="subtitle">Browse ingestion trace history with per-stage detail</p>
+<p style="color:var(--muted);margin-bottom:1rem">3 trace(s)</p>
+
+<details open>
+  <summary>📄 <strong>dlbook_cn_v0.5-beta.pdf</strong> · 0 ms · 2026-06-03T07:18:48</summary>
+  <div class="inner">
+    <p><strong>Source:</strong> <code>documents\dlbook_cn_v0.5-beta.pdf</code></p>
+    <p><strong>Collection:</strong> <span class="badge"></span></p>
+    <p><strong>Trace ID:</strong> <code>25a5cf71-3263-434e-9634-bb043d570bf8</code></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:34%"></div></div>
+        <div class="bar-val">43687.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">31.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">172.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">127875.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:10%"></div></div>
+        <div class="bar-val">14016.0 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>43687.00</td></tr>
+<tr><td>?</td><td>31.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>172.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>127875.00</td></tr>
+<tr><td>?</td><td>14016.00</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>📄 <strong>dlbook_cn_v0.5-beta.pdf</strong> · 0 ms · 2026-06-01T08:36:12</summary>
+  <div class="inner">
+    <p><strong>Source:</strong> <code>documents\dlbook_cn_v0.5-beta.pdf</code></p>
+    <p><strong>Collection:</strong> <span class="badge"></span></p>
+    <p><strong>Trace ID:</strong> <code>e19f7e4a-19fe-4d5b-9e0c-e72c114a7482</code></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:40%"></div></div>
+        <div class="bar-val">42062.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">31.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">172.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">102938.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:8%"></div></div>
+        <div class="bar-val">8453.0 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>42062.00</td></tr>
+<tr><td>?</td><td>31.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>172.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>0.00</td></tr>
+<tr><td>?</td><td>102938.00</td></tr>
+<tr><td>?</td><td>8453.00</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>📄 <strong>dlbook_cn_v0.5-beta.pdf</strong> · 0 ms · 2026-06-01T08:35:41</summary>
+  <div class="inner">
+    <p><strong>Source:</strong> <code>documents\dlbook_cn_v0.5-beta.pdf</code></p>
+    <p><strong>Collection:</strong> <span class="badge"></span></p>
+    <p><strong>Trace ID:</strong> <code>7ba84215-ef49-423c-b60e-e3421095ce20</code></p>
+  </div>
+</details>
+
+</section>
+
+<section id="query-traces">
+  <h1>🔎 Query Traces</h1>
+  <p class="subtitle">Browse query trace history with stage waterfall and Ragas evaluation</p>
+<p style="color:var(--muted);margin-bottom:1rem">25 trace(s)</p>
+
+<details open>
+  <summary>🔍 <strong>"激活函数"</strong> · 0 ms · 2026-06-03T07:52:21</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">激活函数</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:6%"></div></div>
+        <div class="bar-val">42.9 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">628.9 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">630.4 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>42.91</td></tr>
+<tr><td>?</td><td>0.12</td></tr>
+<tr><td>?</td><td>628.94</td></tr>
+<tr><td>?</td><td>630.41</td></tr>
+<tr><td>?</td><td>0.16</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"链式法则"</strong> · 0 ms · 2026-06-03T07:52:20</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">链式法则</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:6%"></div></div>
+        <div class="bar-val">43.7 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">656.8 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">657.9 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>43.70</td></tr>
+<tr><td>?</td><td>0.12</td></tr>
+<tr><td>?</td><td>656.84</td></tr>
+<tr><td>?</td><td>657.93</td></tr>
+<tr><td>?</td><td>0.15</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"Dropout 防止过拟合"</strong> · 0 ms · 2026-06-03T07:52:20</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">Dropout 防止过拟合</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:7%"></div></div>
+        <div class="bar-val">41.4 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">542.5 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">543.6 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>41.41</td></tr>
+<tr><td>?</td><td>0.17</td></tr>
+<tr><td>?</td><td>542.55</td></tr>
+<tr><td>?</td><td>543.65</td></tr>
+<tr><td>?</td><td>0.18</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"批归一化 Batch Normalization"</strong> · 0 ms · 2026-06-03T07:52:19</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">批归一化 Batch Normalization</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:5%"></div></div>
+        <div class="bar-val">32.6 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">542.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">545.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>32.59</td></tr>
+<tr><td>?</td><td>0.15</td></tr>
+<tr><td>?</td><td>542.08</td></tr>
+<tr><td>?</td><td>545.13</td></tr>
+<tr><td>?</td><td>0.18</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"Word2Vec 词嵌入"</strong> · 0 ms · 2026-06-03T07:52:18</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">Word2Vec 词嵌入</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:8%"></div></div>
+        <div class="bar-val">44.5 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">542.3 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">543.8 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>44.55</td></tr>
+<tr><td>?</td><td>0.17</td></tr>
+<tr><td>?</td><td>542.27</td></tr>
+<tr><td>?</td><td>543.84</td></tr>
+<tr><td>?</td><td>0.16</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"注意力机制"</strong> · 0 ms · 2026-06-03T07:52:18</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">注意力机制</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:8%"></div></div>
+        <div class="bar-val">44.8 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">540.2 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">544.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>44.79</td></tr>
+<tr><td>?</td><td>0.13</td></tr>
+<tr><td>?</td><td>540.20</td></tr>
+<tr><td>?</td><td>543.99</td></tr>
+<tr><td>?</td><td>0.19</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"Transformer 架构"</strong> · 0 ms · 2026-06-03T07:52:17</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">Transformer 架构</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:7%"></div></div>
+        <div class="bar-val">42.4 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">539.4 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">539.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>42.42</td></tr>
+<tr><td>?</td><td>0.16</td></tr>
+<tr><td>?</td><td>539.41</td></tr>
+<tr><td>?</td><td>539.07</td></tr>
+<tr><td>?</td><td>0.18</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"自编码器"</strong> · 0 ms · 2026-06-03T07:52:17</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">自编码器</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:9%"></div></div>
+        <div class="bar-val">63.8 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">648.5 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">654.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>63.84</td></tr>
+<tr><td>?</td><td>0.14</td></tr>
+<tr><td>?</td><td>648.52</td></tr>
+<tr><td>?</td><td>653.95</td></tr>
+<tr><td>?</td><td>0.15</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"正则化方法"</strong> · 0 ms · 2026-06-03T07:52:16</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">正则化方法</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:7%"></div></div>
+        <div class="bar-val">53.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:98%"></div></div>
+        <div class="bar-val">744.5 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">754.4 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>53.10</td></tr>
+<tr><td>?</td><td>0.15</td></tr>
+<tr><td>?</td><td>744.51</td></tr>
+<tr><td>?</td><td>754.41</td></tr>
+<tr><td>?</td><td>0.25</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+<details>
+  <summary>🔍 <strong>"梯度下降优化算法"</strong> · 0 ms · 2026-06-03T07:52:15</summary>
+  <div class="inner">
+    <h3>💬 Query</h3>
+    <div class="text-block" style="margin-bottom:1rem">梯度下降优化算法</div>
+    <p>Source: <span class="badge">mcp</span> · Top-K: <code>5</code> · Collection: <span class="badge">knowledge_hub</span></p>
+
+    <h3>⏱️ Stage Timings</h3>
+    <div class="bar-chart">
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:6%"></div></div>
+        <div class="bar-val">45.6 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.1 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:99%"></div></div>
+        <div class="bar-val">727.6 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+        <div class="bar-val">730.0 ms</div>
+      </div>
+
+      <div class="bar-row">
+        <div class="bar-label">?</div>
+        <div class="bar-track"><div class="bar-fill" style="width:1%"></div></div>
+        <div class="bar-val">0.2 ms</div>
+      </div>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th>Elapsed (ms)</th></tr></thead><tbody>
+<tr><td>?</td><td>45.61</td></tr>
+<tr><td>?</td><td>0.14</td></tr>
+<tr><td>?</td><td>727.62</td></tr>
+<tr><td>?</td><td>729.95</td></tr>
+<tr><td>?</td><td>0.19</td></tr>
+</tbody></table>
+  </div>
+</details>
+
+</section>
+
+<section id="evaluation-panel">
+  <h1>📏 Evaluation Panel</h1>
+  <p class="subtitle">Run RAG evaluation against a golden test set</p>
+
+  <h2>⚙️ Configuration</h2>
+  <div class="card-grid">
+    <div class="card">
+      <h4>Evaluator Backend</h4>
+      <p><span class="badge">custom</span> <span class="badge">ragas</span> <span class="badge">composite</span></p>
+      <p style="margin-top:0.5rem">Select which evaluator backend to use</p>
+    </div>
+    <div class="card">
+      <h4>Top-K</h4>
+      <div class="val" style="font-size:1.5rem">10</div>
+      <p>Chunks to retrieve per query</p>
+    </div>
+    <div class="card">
+      <h4>Golden Test Set</h4>
+<div class="info-box success">✅ Found: tests/fixtures/golden_test_set.json</div>
+    </div>
+  </div>
+
+  <h2>▶️ Run Evaluation</h2>
+  <div class="info-box info">
+    Select evaluator backend, configure Top-K, provide answers for RAGAS, then click <strong>Run Evaluation</strong>.
+    Results include per-query metrics (hit_rate, MRR, faithfulness, answer_relevancy) and aggregate scores.
+  </div>
+
+  <h2>📈 Evaluation History</h2>
+  <div class="info-box info">No evaluation history yet. Run an evaluation to see results here.</div>
+</section>
+
+
+</main>
+<footer>
+  Modular RAG MCP Server · Dashboard Report · Generated from live data<br>
+  Collections: 2 · Documents: 1 · Total Chunks: 2,364
+</footer>
+</body>
+</html>
