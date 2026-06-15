@@ -207,6 +207,23 @@ class IngestionSettings:
 
 
 @dataclass(frozen=True)
+class RedisTTLSettings:
+    embedding: int = 604800      # 7 days
+    llm_response: int = 86400    # 1 day
+    session: int = 3600          # 1 hour
+
+
+@dataclass(frozen=True)
+class RedisSettings:
+    enabled: bool
+    host: str
+    port: int
+    db: int
+    password: Optional[str]
+    ttl: RedisTTLSettings
+
+
+@dataclass(frozen=True)
 class Settings:
     llm: LLMSettings
     embedding: EmbeddingSettings
@@ -217,6 +234,7 @@ class Settings:
     observability: ObservabilitySettings
     ingestion: Optional[IngestionSettings] = None
     vision_llm: Optional[VisionLLMSettings] = None
+    redis: Optional[RedisSettings] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Settings":
@@ -256,6 +274,24 @@ class Settings:
                 azure_endpoint=vision_llm.get("azure_endpoint"),
                 deployment_name=vision_llm.get("deployment_name"),
                 base_url=vision_llm.get("base_url"),
+            )
+
+        redis_settings = None
+        if "redis" in data and data.get("redis"):
+            redis_cfg = _require_mapping(data, "redis", "settings")
+            ttl_cfg = redis_cfg.get("ttl", {})
+            redis_ttl = RedisTTLSettings(
+                embedding=ttl_cfg.get("embedding", 604800),
+                llm_response=ttl_cfg.get("llm_response", 86400),
+                session=ttl_cfg.get("session", 3600),
+            )
+            redis_settings = RedisSettings(
+                enabled=redis_cfg.get("enabled", True),
+                host=redis_cfg.get("host", "localhost"),
+                port=redis_cfg.get("port", 6379),
+                db=redis_cfg.get("db", 0),
+                password=redis_cfg.get("password"),
+                ttl=redis_ttl,
             )
 
         settings = cls(
@@ -310,6 +346,7 @@ class Settings:
             ),
             ingestion=ingestion_settings,
             vision_llm=vision_llm_settings,
+            redis=redis_settings,
         )
 
         return settings
@@ -332,6 +369,12 @@ def validate_settings(settings: Settings) -> None:
         raise SettingsError("Missing required field: evaluation.provider")
     if not settings.observability.log_level:
         raise SettingsError("Missing required field: observability.log_level")
+
+    if settings.redis is not None and settings.redis.enabled:
+        if not settings.redis.host:
+            raise SettingsError("Missing required field: redis.host")
+        if not (1 <= settings.redis.port <= 65535):
+            raise SettingsError("redis.port must be between 1 and 65535")
 
 
 def _expand_env_vars(data: Any) -> Any:

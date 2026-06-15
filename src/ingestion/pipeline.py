@@ -25,11 +25,11 @@ from src.core.types import Document, Chunk
 from src.core.trace.trace_context import TraceContext
 from src.observability.logger import get_logger
 
-# Libs layer imports
 from src.libs.loader.file_integrity import SQLiteIntegrityChecker
 from src.libs.loader.pdf_loader import PdfLoader
 from src.libs.embedding.embedding_factory import EmbeddingFactory
 from src.libs.vector_store.vector_store_factory import VectorStoreFactory
+from src.libs.redis import EmbeddingCache, LLMResponseCache, SessionMemory, from_settings
 
 # Ingestion layer imports
 from src.ingestion.chunking.document_chunker import DocumentChunker
@@ -124,7 +124,7 @@ class IngestionPipeline:
         force: bool = False
     ):
         """Initialize pipeline with all components.
-        
+
         Args:
             settings: Application settings from settings.yaml
             collection: Collection name for organizing documents
@@ -133,7 +133,14 @@ class IngestionPipeline:
         self.settings = settings
         self.collection = collection
         self.force = force
-        
+
+        # Initialize Redis-backed caches (gracefully degrade if Redis unavailable)
+        from src.libs.redis.factory import from_settings
+        caches = from_settings(settings)
+        self._embedding_cache: EmbeddingCache = caches.embedding
+        self._llm_response_cache: LLMResponseCache = caches.llm_response
+        self._session_memory: SessionMemory = caches.session
+
         # Initialize all components
         logger.info("Initializing Ingestion Pipeline components...")
         
@@ -152,11 +159,11 @@ class IngestionPipeline:
         self.chunker = DocumentChunker(settings)
         logger.info("  ✓ DocumentChunker initialized")
         
-        # Stage 4: Transforms
-        self.chunk_refiner = ChunkRefiner(settings)
+        # Stage 4: Transforms (with LLM response cache)
+        self.chunk_refiner = ChunkRefiner(settings, llm_cache=self._llm_response_cache)
         logger.info(f"  ✓ ChunkRefiner initialized (use_llm={self.chunk_refiner.use_llm})")
-        
-        self.metadata_enricher = MetadataEnricher(settings)
+
+        self.metadata_enricher = MetadataEnricher(settings, llm_cache=self._llm_response_cache)
         logger.info(f"  ✓ MetadataEnricher initialized (use_llm={self.metadata_enricher.use_llm})")
         
         self.image_captioner = ImageCaptioner(settings)
@@ -166,7 +173,7 @@ class IngestionPipeline:
         # Stage 5: Encoders
         embedding = EmbeddingFactory.create(settings)
         batch_size = settings.ingestion.batch_size if settings.ingestion else 100
-        self.dense_encoder = DenseEncoder(embedding, batch_size=batch_size)
+        self.dense_encoder = DenseEncoder(embedding, batch_size=batch_size, embedding_cache=self._embedding_cache)
         logger.info(f"  ✓ DenseEncoder initialized (provider={settings.embedding.provider})")
         
         self.sparse_encoder = SparseEncoder()

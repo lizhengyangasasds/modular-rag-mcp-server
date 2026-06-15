@@ -29,6 +29,8 @@ from src.core.types import RetrievalResult
 if TYPE_CHECKING:
     from src.core.query_engine.hybrid_search import HybridSearch
     from src.core.query_engine.reranker import CoreReranker
+    from src.libs.redis.session_memory import SessionMemory
+    from src.libs.redis.embedding_cache import EmbeddingCache
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +39,14 @@ logger = logging.getLogger(__name__)
 TOOL_NAME = "query_knowledge_hub"
 TOOL_DESCRIPTION = """Search the knowledge base for relevant documents.
 
-This tool uses hybrid search (semantic + keyword) to find the most relevant 
+This tool uses hybrid search (semantic + keyword) to find the most relevant
 documents matching your query. Results include source citations for reference.
 
 Parameters:
 - query: Your search question or keywords
 - top_k: Maximum number of results (default: 5)
 - collection: Limit search to a specific document collection
+- session_id: Optional session ID for multi-turn memory (stored in Redis)
 """
 
 TOOL_INPUT_SCHEMA: Dict[str, Any] = {
@@ -63,6 +66,11 @@ TOOL_INPUT_SCHEMA: Dict[str, Any] = {
         "collection": {
             "type": "string",
             "description": "Optional collection name to limit the search scope.",
+        },
+        "session_id": {
+            "type": "string",
+            "description": "Optional session ID for multi-turn conversation memory. "
+                           "When provided, the query and results are stored in Redis for context reuse.",
         },
     },
     "required": ["query"],
@@ -109,15 +117,19 @@ class QueryKnowledgeHubTool:
         hybrid_search: Optional[HybridSearch] = None,
         reranker: Optional[CoreReranker] = None,
         response_builder: Optional[ResponseBuilder] = None,
+        session_memory: Optional["SessionMemory"] = None,
+        embedding_cache: Optional["EmbeddingCache"] = None,
     ) -> None:
         """Initialize QueryKnowledgeHubTool.
-        
+
         Args:
             settings: Application settings. If None, loaded from default path.
             config: Tool configuration. If None, uses defaults.
             hybrid_search: Optional pre-configured HybridSearch instance.
             reranker: Optional pre-configured CoreReranker instance.
             response_builder: Optional pre-configured ResponseBuilder instance.
+            session_memory: Optional Redis-backed SessionMemory for multi-turn memory.
+            embedding_cache: Optional Redis-backed EmbeddingCache for query embedding cache.
         """
         self._settings = settings
         self.config = config or QueryKnowledgeHubConfig()
@@ -125,7 +137,9 @@ class QueryKnowledgeHubTool:
         self._reranker = reranker
         self._embedding_client = None
         self._response_builder = response_builder or ResponseBuilder()
-        
+        self._session_memory = session_memory
+        self._embedding_cache = embedding_cache
+
         # Track initialization state
         self._initialized = False
         self._current_collection: Optional[str] = None
@@ -170,14 +184,19 @@ class QueryKnowledgeHubTool:
         from src.ingestion.storage.bm25_indexer import BM25Indexer
         from src.libs.embedding.embedding_factory import EmbeddingFactory
         from src.libs.vector_store.vector_store_factory import VectorStoreFactory
-        
+        from src.libs.redis import EmbeddingCache, SessionMemory, from_settings
+
+        caches = from_settings(self.settings)
+        self._embedding_cache = caches.embedding
+        self._session_memory = caches.session
+
         # === Fully cached components (stateless, never go stale) ===
         if self._embedding_client is None:
             self._embedding_client = EmbeddingFactory.create(self.settings)
-        
+
         if self._reranker is None:
             self._reranker = create_core_reranker(settings=self.settings)
-        
+
         # === Rebuild for new collection ===
         # ChromaDB PersistentClient uses SQLite under the hood —
         # concurrent readers see committed writes from other processes
@@ -186,11 +205,12 @@ class QueryKnowledgeHubTool:
             self.settings,
             collection_name=collection,
         )
-        
+
         dense_retriever = create_dense_retriever(
             settings=self.settings,
             embedding_client=self._embedding_client,
             vector_store=vector_store,
+            embedding_cache=self._embedding_cache,
         )
         
         # BM25Indexer just holds the index dir path; the SparseRetriever
@@ -221,41 +241,51 @@ class QueryKnowledgeHubTool:
         query: str,
         top_k: Optional[int] = None,
         collection: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> MCPToolResponse:
         """Execute the query_knowledge_hub tool.
-        
+
         Args:
             query: Search query string.
             top_k: Maximum results to return.
             collection: Target collection name.
-            
+            session_id: Optional session ID for multi-turn conversation memory.
+                        When provided, stores query and results in Redis.
+
         Returns:
             MCPToolResponse with formatted content and citations.
-            
+
         Raises:
             ValueError: If query is empty or invalid.
         """
         # Validate query
         if not query or not query.strip():
             raise ValueError("Query cannot be empty")
-        
+
         # Apply defaults
         effective_top_k = min(
             top_k or self.config.default_top_k,
             self.config.max_top_k
         )
         effective_collection = collection or self.config.default_collection
-        
+
         logger.info(
             f"Executing query_knowledge_hub: query='{query[:50]}...', "
-            f"top_k={effective_top_k}, collection={effective_collection}"
+            f"top_k={effective_top_k}, collection={effective_collection}, "
+            f"session_id={session_id}"
         )
-        
+
         trace = TraceContext(trace_type="query")
         trace.metadata["query"] = query[:200]
         trace.metadata["top_k"] = effective_top_k
         trace.metadata["collection"] = effective_collection
         trace.metadata["source"] = "mcp"
+        trace.metadata["session_id"] = session_id
+
+        # Persist session memory if session_id provided
+        if session_id and self._session_memory:
+            self._session_memory.set_last_query(session_id, query)
+            trace.metadata["session_memory"] = True
 
         try:
             # Initialize components for collection
@@ -269,25 +299,25 @@ class QueryKnowledgeHubTool:
                 "collection": effective_collection,
                 "cold_start": _init_elapsed > 500,  # >500ms ≈ cold
             }, elapsed_ms=_init_elapsed)
-            
+
             # Perform hybrid search (blocking: embedding API + DB queries)
             results = await asyncio.to_thread(
                 self._perform_search, query, effective_top_k, trace,
             )
-            
+
             # Apply reranking if enabled (may call LLM API)
             if self.config.enable_rerank and results:
                 results = await asyncio.to_thread(
                     self._apply_rerank, query, results, effective_top_k, trace,
                 )
-            
+
             # Build response
             response = self._response_builder.build(
                 results=results,
                 query=query,
                 collection=effective_collection,
             )
-            
+
             # Store final results in trace for dashboard display
             trace.metadata["final_results"] = [
                 {
@@ -300,14 +330,24 @@ class QueryKnowledgeHubTool:
                 for r in results
             ]
 
+            # Persist to session memory and add conversation history
+            if session_id and self._session_memory:
+                self._session_memory.add_message(session_id, "user", query)
+                self._session_memory.set_last_results(
+                    session_id,
+                    [{"chunk_id": r.chunk_id, "score": r.score, "text": r.text or "", "source": r.metadata.get("source_path", "")} for r in results],
+                )
+                if not response.is_empty:
+                    self._session_memory.add_message(session_id, "assistant", response.content[:500])
+
             logger.info(
                 f"query_knowledge_hub completed: {len(results)} results, "
                 f"is_empty={response.is_empty}"
             )
-            
+
             TraceCollector().collect(trace)
             return response
-            
+
         except Exception as e:
             logger.exception(f"query_knowledge_hub failed: {e}")
             TraceCollector().collect(trace)
@@ -321,21 +361,23 @@ class QueryKnowledgeHubTool:
         trace: Optional[Any] = None,
     ) -> List[RetrievalResult]:
         """Perform hybrid search.
-        
+
         Args:
             query: Search query.
             top_k: Maximum results.
             trace: Optional TraceContext for observability.
-            
+
         Returns:
             List of RetrievalResult.
         """
         if self._hybrid_search is None:
             raise RuntimeError("HybridSearch not initialized")
-        
+
         # Use a larger initial retrieval for reranking
         initial_top_k = top_k * 2 if self.config.enable_rerank else top_k
-        
+
+        # Step 1: Embedding cache check is handled inside DenseRetriever
+        # Step 2: Perform hybrid search
         try:
             results = self._hybrid_search.search(
                 query=query,

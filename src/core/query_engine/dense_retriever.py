@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from src.core.settings import Settings
     from src.libs.embedding.base_embedding import BaseEmbedding
     from src.libs.vector_store.base_vector_store import BaseVectorStore
+    from src.libs.redis.embedding_cache import EmbeddingCache
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ class DenseRetriever:
         embedding_client: Optional[BaseEmbedding] = None,
         vector_store: Optional[BaseVectorStore] = None,
         default_top_k: int = 10,
+        embedding_cache: Optional["EmbeddingCache"] = None,
     ) -> None:
         """Initialize DenseRetriever with dependencies.
         
@@ -83,7 +85,8 @@ class DenseRetriever:
         """
         self.embedding_client = embedding_client
         self.vector_store = vector_store
-        
+        self._embedding_cache = embedding_cache
+
         # Extract default_top_k from settings if available
         self.default_top_k = default_top_k
         if settings is not None:
@@ -92,10 +95,13 @@ class DenseRetriever:
                 self.default_top_k = getattr(
                     retrieval_config, 'dense_top_k', default_top_k
                 )
-        
+
         logger.info(
             f"DenseRetriever initialized with default_top_k={self.default_top_k}"
         )
+
+    def set_embedding_cache(self, cache: "EmbeddingCache") -> None:
+        self._embedding_cache = cache
     
     def retrieve(
         self,
@@ -135,10 +141,22 @@ class DenseRetriever:
         
         logger.debug(f"Retrieving for query='{query[:50]}...', top_k={effective_top_k}")
         
-        # Step 1: Embed the query
+        # Step 1: Embed the query (check cache first)
         try:
-            query_vectors = self.embedding_client.embed([query], trace=trace)
-            query_vector = query_vectors[0]
+            # Check embedding cache for this exact query text
+            cached_vector = None
+            if self._embedding_cache is not None:
+                cached_vector = self._embedding_cache.get(query)
+
+            if cached_vector is not None:
+                query_vector = cached_vector
+                logger.debug(f"Embedding cache HIT for query: {query[:50]}...")
+            else:
+                query_vectors = self.embedding_client.embed([query], trace=trace)
+                query_vector = query_vectors[0]
+                # Cache for future hits
+                if self._embedding_cache is not None:
+                    self._embedding_cache.set(query, query_vector)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to embed query: {e}. "
@@ -235,22 +253,24 @@ def create_dense_retriever(
     settings: Settings,
     embedding_client: Optional[BaseEmbedding] = None,
     vector_store: Optional[BaseVectorStore] = None,
+    embedding_cache: Optional["EmbeddingCache"] = None,
 ) -> DenseRetriever:
     """Factory function to create a DenseRetriever with optional dependency injection.
-    
+
     This function simplifies DenseRetriever creation by automatically creating
     dependencies from factories if not provided.
-    
+
     Args:
         settings: Application settings.
         embedding_client: Optional pre-configured embedding client.
                           If None, created from EmbeddingFactory.
         vector_store: Optional pre-configured vector store.
                       If None, created from VectorStoreFactory.
-    
+        embedding_cache: Optional Redis-backed EmbeddingCache for query caching.
+
     Returns:
         Configured DenseRetriever instance.
-    
+
     Example:
         >>> settings = Settings.load('config/settings.yaml')
         >>> retriever = create_dense_retriever(settings)
@@ -259,13 +279,14 @@ def create_dense_retriever(
     if embedding_client is None:
         from src.libs.embedding.embedding_factory import EmbeddingFactory
         embedding_client = EmbeddingFactory.create(settings)
-    
+
     if vector_store is None:
         from src.libs.vector_store.vector_store_factory import VectorStoreFactory
         vector_store = VectorStoreFactory.create(settings)
-    
+
     return DenseRetriever(
         settings=settings,
         embedding_client=embedding_client,
         vector_store=vector_store,
+        embedding_cache=embedding_cache,
     )

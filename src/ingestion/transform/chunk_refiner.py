@@ -1,9 +1,11 @@
 """Chunk refinement transform: rule-based cleaning + optional LLM enhancement."""
 
+from __future__ import annotations
+
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from src.core.settings import Settings, resolve_path
 from src.core.types import Chunk
@@ -12,6 +14,9 @@ from src.ingestion.transform.base_transform import BaseTransform
 from src.libs.llm.llm_factory import LLMFactory
 from src.libs.llm.base_llm import BaseLLM, Message
 from src.observability.logger import get_logger
+
+if TYPE_CHECKING:
+    from src.libs.redis.llm_response_cache import LLMResponseCache
 
 logger = get_logger(__name__)
 
@@ -41,7 +46,8 @@ class ChunkRefiner(BaseTransform):
         self,
         settings: Settings,
         llm: Optional[BaseLLM] = None,
-        prompt_path: Optional[str] = None
+        prompt_path: Optional[str] = None,
+        llm_cache: Optional["LLMResponseCache"] = None,
     ):
         """Initialize ChunkRefiner.
         
@@ -54,6 +60,7 @@ class ChunkRefiner(BaseTransform):
         self._llm = llm
         self._prompt_template: Optional[str] = None
         self._prompt_path = prompt_path or str(resolve_path("config/prompts/chunk_refinement.txt"))
+        self._llm_cache = llm_cache
         
         # Determine if LLM should be used
         self.use_llm = getattr(
@@ -73,6 +80,9 @@ class ChunkRefiner(BaseTransform):
                 logger.warning(f"Failed to initialize LLM: {e}. Falling back to rule-based only.")
                 self.use_llm = False
         return self._llm
+
+    def set_llm_cache(self, cache: "LLMResponseCache") -> None:
+        self._llm_cache = cache
     
     def transform(
         self,
@@ -102,23 +112,15 @@ class ChunkRefiner(BaseTransform):
         chunk: Chunk, 
         trace: Optional[TraceContext] = None
     ) -> Tuple[Chunk, str, Optional[str]]:
-        """Refine a single chunk. Thread-safe.
-        
-        Args:
-            chunk: Chunk to refine
-            trace: Optional trace context
-            
-        Returns:
-            Tuple of (refined_chunk, refined_by, error_message)
-        """
+        """Refine a single chunk. Thread-safe."""
         try:
             # Step 1: Rule-based refinement
             rule_refined_text = self._rule_based_refine(chunk.text)
-            
-            # Step 2: LLM enhancement
+
+            # Step 2: LLM enhancement (with cache)
             if self.use_llm and self.llm:
                 llm_refined_text = self._llm_refine(rule_refined_text, trace)
-                
+
                 if llm_refined_text:
                     refined_text = llm_refined_text
                     refined_by = "llm"
@@ -128,7 +130,7 @@ class ChunkRefiner(BaseTransform):
             else:
                 refined_text = rule_refined_text
                 refined_by = "rule"
-            
+
             refined_chunk = Chunk(
                 id=chunk.id,
                 text=refined_text,
@@ -139,7 +141,7 @@ class ChunkRefiner(BaseTransform):
                 source_ref=chunk.source_ref
             )
             return (refined_chunk, refined_by, None)
-            
+
         except Exception as e:
             logger.error(f"Failed to refine chunk {chunk.id}: {e}")
             return (chunk, "error", str(e))
@@ -349,48 +351,53 @@ class ChunkRefiner(BaseTransform):
         trace: Optional[TraceContext] = None
     ) -> Optional[str]:
         """Apply LLM-based intelligent refinement.
-        
-        Args:
-            text: Rule-refined text
-            trace: Optional trace context
-            
-        Returns:
-            LLM-refined text, or None if refinement failed
+
+        Checks the LLMResponseCache before calling the LLM API.
         """
         if not text or not text.strip():
             return text
-        
+
         try:
-            # Load prompt template
+            # Load prompt template (used as part of cache key)
             prompt_template = self._load_prompt()
             if not prompt_template:
                 logger.warning("Prompt template not found, skipping LLM refinement")
                 return None
-            
+
+            # Check cache first
+            if self._llm_cache is not None:
+                cached = self._llm_cache.get(prompt_template, text)
+                if cached is not None:
+                    logger.debug("LLM refine cache HIT")
+                    return cached
+
             # Fill prompt
             if '{text}' not in prompt_template:
                 logger.error("Prompt template missing {text} placeholder")
                 return None
-            
+
             prompt = prompt_template.replace('{text}', text)
-            
+
             # Call LLM with Message objects
             messages = [Message(role="user", content=prompt)]
             response = self.llm.chat(messages, trace=trace)
-            
+
             # Extract text from ChatResponse
             if isinstance(response, str):
                 refined_text = response
             else:
                 # response is ChatResponse object
                 refined_text = response.content
-            
+
             if refined_text and refined_text.strip():
+                # Write to cache
+                if self._llm_cache is not None:
+                    self._llm_cache.set(prompt_template, text, refined_text)
                 return refined_text.strip()
             else:
                 logger.warning("LLM returned empty result")
                 return None
-                
+
         except Exception as e:
             logger.warning(f"LLM refinement failed: {e}")
             return None

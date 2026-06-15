@@ -58,6 +58,9 @@ dependencies = [
     # Observability
     "streamlit>=1.30.0",
 
+    # Redis Cache
+    "redis>=5.0",
+
     # Evaluation
     "ragas>=0.1.0",
     "datasets>=2.0.0",

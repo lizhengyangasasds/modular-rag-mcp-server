@@ -1,9 +1,11 @@
 """Metadata enrichment transform: rule-based + optional LLM enhancement."""
 
+from __future__ import annotations
+
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from src.core.settings import Settings, resolve_path
 from src.core.types import Chunk
@@ -12,6 +14,9 @@ from src.ingestion.transform.base_transform import BaseTransform
 from src.libs.llm.llm_factory import LLMFactory
 from src.libs.llm.base_llm import BaseLLM, Message
 from src.observability.logger import get_logger
+
+if TYPE_CHECKING:
+    from src.libs.redis.llm_response_cache import LLMResponseCache
 
 logger = get_logger(__name__)
 
@@ -47,7 +52,8 @@ class MetadataEnricher(BaseTransform):
         self,
         settings: Settings,
         llm: Optional[BaseLLM] = None,
-        prompt_path: Optional[str] = None
+        prompt_path: Optional[str] = None,
+        llm_cache: Optional["LLMResponseCache"] = None,
     ):
         """Initialize MetadataEnricher.
         
@@ -60,6 +66,7 @@ class MetadataEnricher(BaseTransform):
         self._llm = llm
         self._prompt_template: Optional[str] = None
         self._prompt_path = prompt_path or str(resolve_path("config/prompts/metadata_enrichment.txt"))
+        self._llm_cache = llm_cache
         
         # Determine if LLM should be used
         enricher_config = {}
@@ -84,6 +91,9 @@ class MetadataEnricher(BaseTransform):
                 logger.warning(f"Failed to initialize LLM: {e}. Falling back to rule-based only.")
                 self.use_llm = False
         return self._llm
+
+    def set_llm_cache(self, cache: "LLMResponseCache") -> None:
+        self._llm_cache = cache
     
     def transform(
         self,
@@ -455,32 +465,36 @@ class MetadataEnricher(BaseTransform):
         trace: Optional[TraceContext] = None
     ) -> Optional[Dict[str, Any]]:
         """Enrich metadata using LLM.
-        
-        Args:
-            text: Chunk text content
-            trace: Optional trace context
-            
-        Returns:
-            Dictionary with title, summary, tags, or None on failure
+
+        Checks the LLMResponseCache before calling the LLM API.
         """
         if not self.llm:
             return None
-        
+
         try:
             # Load prompt template
             prompt = self._load_prompt()
-            
+            if not prompt:
+                return None
+
+            # Check cache first
+            if self._llm_cache is not None:
+                cached = self._llm_cache.get_metadata(prompt, text[:2000])
+                if cached is not None:
+                    logger.debug("LLM enrich cache HIT")
+                    return cached
+
             # Build prompt with text
-            formatted_prompt = prompt.replace("{chunk_text}", text[:2000])  # Limit text length
-            
+            formatted_prompt = prompt.replace("{chunk_text}", text[:2000])
+
             # Call LLM
             messages = [Message(role="user", content=formatted_prompt)]
             response = self.llm.chat(messages)
-            
+
             if not response:
                 logger.warning("LLM returned empty response for metadata enrichment")
                 return None
-            
+
             # Extract text from response (handle both string and ChatResponse object)
             response_text = response
             if hasattr(response, 'content'):
@@ -489,18 +503,22 @@ class MetadataEnricher(BaseTransform):
                 response_text = response.text
             elif not isinstance(response, str):
                 response_text = str(response)
-            
+
             # Parse LLM response
             metadata = self._parse_llm_response(response_text)
-            
+
+            # Write to cache
+            if self._llm_cache is not None and metadata:
+                self._llm_cache.set_metadata(prompt, text[:2000], metadata)
+
             if trace:
                 trace.record_stage("llm_enrich", {
                     "success": True,
                     "response_length": len(response_text)
                 })
-            
+
             return metadata
-            
+
         except Exception as e:
             logger.warning(f"LLM enrichment failed: {e}")
             if trace:

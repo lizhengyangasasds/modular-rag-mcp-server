@@ -70,6 +70,21 @@ evaluation:
     - "faithfulness"
 
 # =============================================================================
+# Redis Cache Configuration
+# =============================================================================
+redis:
+  enabled: true                       # 设为 false 以禁用 Redis 缓存
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null                      # 如有密码填入 "${REDIS_PASSWORD}"
+  # TTL 配置（秒）
+  ttl:
+    embedding: 604800                  # Embedding 缓存：7 天
+    llm_response: 86400                # LLM 响应缓存：1 天
+    session: 3600                      # 会话记忆：1 小时
+
+# =============================================================================
 # Observability Configuration
 # =============================================================================
 observability:
