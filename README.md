@@ -22,6 +22,7 @@
 - [架构图](#架构图)
 - [检索流程详解](#检索流程详解)
 - [高级配置](#高级配置)
+  - [Redis 缓存](#启用-redis-缓存降低-api-调用成本)
 - [项目结构](#项目结构)
 
 ---
@@ -54,6 +55,7 @@
 - **Embedding**: HuggingFace Sentence-Transformers（`all-MiniLM-L6-v2`）
 - **向量库**: ChromaDB
 - **检索**: BM25 + 稠密向量 + RRF（Reciprocal Rank Fusion）
+- **缓存**: Redis（Embedding 向量缓存 / LLM 响应缓存 / 多轮会话记忆）
 - **协议**: MCP（Model Context Protocol）
 - **文档解析**: pypdf / MarkItDown（自动 fallback）
 
@@ -234,6 +236,37 @@ python main.py
 
 ---
 
+## Dashboard
+
+基于 Streamlit 构建的六页面可视化管控平台，覆盖 RAG 系统从数据摄入到检索查询的全生命周期管理。
+
+### 快速启动
+
+```bash
+streamlit run src/observability/dashboard/app.py
+```
+
+### 功能页面
+
+| 页面 | 说明 |
+|------|------|
+| **Overview** | 系统总览：组件配置、数据资产统计、核心指标 |
+| **Data Browser** | 文档/Chunk/图片详情查看 |
+| **Ingestion Manager** | 文件上传、实时进度条、文档删除 |
+| **Ingestion Traces** | 摄取链路五阶段耗时瀑布图 |
+| **Query Traces** | Dense/Sparse 对比、Rerank 前后分数变化 |
+| **Evaluation Panel** | Ragas 指标 + 自定义指标历史趋势 |
+
+### 页面预览
+
+> Dashboard 截图存放在 [`docs/screenshots/`](docs/screenshots/) 目录下，启动后截取即可更新。
+
+![Overview](docs/screenshots/overview.png)
+![Query Traces](docs/screenshots/query_traces.png)
+![Evaluation Panel](docs/screenshots/evaluation_panel.png)
+
+---
+
 ## 检索流程详解
 
 ### 混合检索（Hybrid Search）
@@ -340,6 +373,39 @@ rerank:
   top_k: 5
 ```
 
+### 启用 Redis 缓存（降低 API 调用成本）
+
+```yaml
+redis:
+  enabled: true
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null                        # 有密码则填入 "${REDIS_PASSWORD}"
+  ttl:
+    embedding: 604800                  # Embedding 向量缓存（秒），默认 7 天
+    llm_response: 86400                # LLM 响应缓存，默认 1 天
+    session: 3600                      # 会话记忆滑动 TTL，默认 1 小时
+```
+
+**说明**：
+
+| 缓存类型 | 作用 | 命中效果 |
+|---------|------|---------|
+| Embedding Cache | 相同文本复用向量 | 重复 chunk 导入跳过 Embedding API 调用 |
+| LLM Response Cache | 相同 prompt + 文本复用 LLM 结果 | ChunkRefiner / MetadataEnricher 跳过 LLM 调用 |
+| Session Memory | 多轮对话历史持久化 | 下次查询可携带上下文（`session_id` 参数） |
+
+> Redis 不可用时所有缓存自动降级为 no-op，不影响系统正常运行。
+
+**快速启动 Redis**（Docker）：
+
+```bash
+docker run -d -p 6379:6379 redis
+```
+
+启动后 `settings.yaml` 中 `redis.enabled: true` 即可启用全部三层缓存。
+
 ### 启用多模态（Vision LLM，用于 PDF 中的图表理解）
 
 ```yaml
@@ -377,7 +443,9 @@ modular-rag-mcp-server/
 ├── config/
 │   ├── settings.yaml          # 统一配置（密钥通过 ${ENV_VAR} 引用 .env）
 │   └── prompts/               # Rerank / System prompts
-├── documents/                # 待导入文档目录（PDF/MD/TXT）
+├── docs/
+│   └── screenshots/           # Dashboard 页面截图
+├── documents/                 # 待导入文档目录（PDF/MD/TXT）
 │   └── .gitkeep
 ├── src/
 │   ├── core/
@@ -396,7 +464,8 @@ modular-rag-mcp-server/
 │   ├── libs/
 │   │   ├── llm/              # LLM 工厂（DeepSeek / OpenAI / Ollama）
 │   │   ├── embedding/        # Embedding 工厂（HuggingFace）
-│   │   └── vector_store/     # VectorStore 工厂（ChromaDB）
+│   │   ├── vector_store/     # VectorStore 工厂（ChromaDB）
+│   │   └── redis/            # Redis 缓存（Embedding / LLM 响应 / 会话记忆）
 │   ├── mcp_server/
 │   │   ├── server.py         # MCP 服务入口（stdio）
 │   │   ├── protocol_handler.py
