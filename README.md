@@ -24,6 +24,7 @@
 - [检索流程详解](#检索流程详解)
 - [高级配置](#高级配置)
   - [Redis 缓存](#启用-redis-缓存降低-api-调用成本)
+- [测试与 Fixture](#测试与-fixture)
 - [项目结构](#项目结构)
 
 ---
@@ -556,6 +557,57 @@ retrieval:
 
 ---
 
+## 测试与 Fixture
+
+项目自带 60+ 个单元 / 集成测试，覆盖 PDF 质量检查、流水线集成、检索查询等核心链路。
+
+### 运行测试
+
+```bash
+# 全部单元 + 集成测试
+python -m pytest tests/unit/ -v
+
+# 只跑 PDF 质量检查相关（47 个单测 + 9 个集成测试）
+python -m pytest tests/unit/test_pdf_quality_checker.py tests/unit/test_pipeline_quality_check_integration.py -v
+```
+
+### 测试套件概览
+
+| 测试文件 | 覆盖范围 | 用例数 |
+|---------|---------|--------|
+| `tests/unit/test_pdf_quality_checker.py` | 字符分类、扫描件检测、噪声判定、5 级质量分级、`DocumentQualityError` 语义 | 47 |
+| `tests/unit/test_pipeline_quality_check_integration.py` | Stage 2b 在 `IngestionPipeline` 中的真实集成：清洁 PDF、扫描件、`fail_on_scanned`、禁用、阶段顺序 | 9 |
+| `tests/unit/test_pipeline_progress.py` | `IngestionPipeline.run()` 的 6 阶段 `on_progress` 回调 | 6 |
+
+### Fixture 文件说明
+
+`tests/fixtures/sample_documents/` 下的 PDF 均为**程序可重新生成**的产物，便于在 CI 中复现：
+
+| Fixture | 生成脚本 | 用途 |
+|---------|---------|------|
+| `simple.pdf` | `sample_documents/generate_pdfs.py` | 纯文本最小 PDF，MarkItDown/pypdf 基线测试 |
+| `with_images.pdf` | `sample_documents/generate_pdfs.py` | 含图片的 PDF，验证图像抽取 |
+| `complex_technical_doc.pdf` | `generate_complex_pdf.py` | 多章节 / 多表格 / 多图 / 中英文混排，覆盖 PDF 解析综合场景 |
+| `scanned.pdf` | `generate_scanned_pdf.py` | **真实扫描件** —— 3 页全光栅图像，`pypdf.extract_text()` 返回空串，触发 `is_scanned=True` |
+| `blogger_intro.pdf`, `chinese_long_doc.pdf`, `chinese_table_chart_doc.pdf`, `chinese_technical_doc.pdf` | `generate_blogger_intro_pdf.py`, `generate_qa_test_pdfs.py` | 评估测试集对应的真实风格文档 |
+
+### 复现/扩展 Fixture
+
+```bash
+# 重新生成所有标准 PDF fixture
+python tests/fixtures/sample_documents/generate_pdfs.py
+python tests/fixtures/generate_complex_pdf.py
+python tests/fixtures/generate_scanned_pdf.py   # 三页全图扫描件，~400 KB
+
+# 重新生成评估测试 PDF
+python tests/fixtures/generate_blogger_intro_pdf.py
+python tests/fixtures/generate_qa_test_pdfs.py
+```
+
+> **设计要点**：所有生成器均无外部网络依赖，使用 `reportlab` + `Pillow` 本地生成，CI 中可一键复现。
+
+---
+
 ## 项目结构
 
 ```
@@ -599,6 +651,23 @@ modular-rag-mcp-server/
 ├── scripts/
 │   ├── ingest.py             # 命令行导入工具
 │   └── query.py              # 命令行查询工具
+├── tests/
+│   ├── fixtures/             # 测试 fixture + 程序化生成器
+│   │   ├── generate_complex_pdf.py
+│   │   ├── generate_scanned_pdf.py     # 扫描件 PDF 生成器
+│   │   ├── generate_blogger_intro_pdf.py
+│   │   ├── generate_qa_test_pdfs.py
+│   │   ├── golden_test_set.json        # 检索评估测试集
+│   │   └── sample_documents/           # 实际 PDF fixture
+│   │       ├── generate_pdfs.py
+│   │       ├── simple.pdf
+│   │       ├── with_images.pdf
+│   │       ├── complex_technical_doc.pdf
+│   │       └── scanned.pdf             # 三页光栅扫描件
+│   └── unit/                 # 单元 / 集成测试（60+ 用例）
+│       ├── test_pdf_quality_checker.py            # 47 个单测
+│       ├── test_pipeline_quality_check_integration.py  # 9 个集成测试
+│       └── test_pipeline_progress.py               # 6 个阶段回调测试
 ├── main.py                   # MCP 服务入口
 ├── .env                      # 密钥文件（不提交）
 ├── .env.example              # 密钥模板
