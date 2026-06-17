@@ -20,6 +20,7 @@
   - [5. 启动 MCP 服务](#5-启动-mcp-服务)
 - [MCP 工具一览](#mcp-工具一览)
 - [架构图](#架构图)
+- [PDF 质量检查](#pdf-质量检查)
 - [检索流程详解](#检索流程详解)
 - [高级配置](#高级配置)
   - [Redis 缓存](#启用-redis-缓存降低-api-调用成本)
@@ -39,7 +40,7 @@
 
 | 模块 | 说明 |
 |------|------|
-| **文档摄取** | PDF → 分块 → 元数据增强 → 向量化 → 写入 Chroma + BM25 索引 |
+| **文档摄取** | PDF → 质量检查 → 分块 → 元数据增强 → 向量化 → 写入 Chroma + BM25 索引 |
 | **混合检索** | Dense（语义向量）+ Sparse（BM25）+ RRF 融合，可选 Rerank |
 | **MCP Server** | 标准 MCP 协议，暴露 12 个工具，可在 Cursor / Copilot 等客户端中使用 |
 | **可插拔架构** | LLM / Embedding / VectorStore 等通过 `config/settings.yaml` 切换 |
@@ -193,11 +194,12 @@ python main.py
 │  ┌─────────────┐                                                            │
 │  │ documents/ │   ┌──────────────────────┐  ┌────────────────────────────┐  │
 │  │  PDF / MD   │──▶│   Ingestion Pipeline  │  │  Stage 1: PDF 解析        │  │
-│  └─────────────┘   │   scripts/ingest.py   │  │  Stage 2: 分块 (chunk)   │  │
-│                    │        或              │  │  Stage 3: LLM 元数据增强   │  │
-│  MCP Client        │   MCP: ingest_documents │  │  Stage 4: 本地 Embedding  │  │
-│  (Cursor) ─────────▶│                        │  │  Stage 5: ChromaDB 存储   │  │
-│                    └──────────┬─────────────┘  │  Stage 6: BM25 索引      │  │
+│  └─────────────┘   │   scripts/ingest.py   │  │  Stage 2: 质量检查        │  │
+│                    │        或              │  │  Stage 3: 分块 (chunk)   │  │
+│  MCP Client        │   MCP: ingest_documents │  │  Stage 4: LLM 元数据增强   │  │
+│  (Cursor) ─────────▶│                        │  │  Stage 5: 本地 Embedding  │  │
+│                    └──────────┬─────────────┘  │  Stage 6: ChromaDB 存储   │  │
+│                                 │              │  Stage 7: BM25 索引      │  │
 │                                 │              └─────────────┬──────────────┘  │
 │                                 ▼                        │                   │
 │                    ┌──────────────────────┐              ▼                   │
@@ -230,9 +232,113 @@ python main.py
 
 ### 架构说明
 
-- **documents/** → PDF 解析 → 分块 → LLM 元数据增强 → 本地 Embedding → ChromaDB + BM25
+- **documents/** → PDF 解析 → **质量检查（Stage 2）** → 分块 → LLM 元数据增强 → 本地 Embedding → ChromaDB + BM25
 - **用户查询** → Dense 检索（向量相似度）+ Sparse 检索（BM25）→ RRF 融合 → LLM 生成 → 带引用返回
 - **MCP 协议** → 通过 stdio 传输 JSON-RPC，支持 Cursor / Claude App 等客户端
+
+---
+
+## PDF 质量检查
+
+在文档被分块、向量化前，系统会先做一轮**文本层质量评估**，识别三类劣质 PDF：
+
+| 类型 | 特征 | 系统反应 |
+|------|------|---------|
+| **扫描件** | 几乎无可提取文本（有效字符率 < 10%，或全部页都是噪声） | 标记 `is_scanned=True`，建议先 OCR |
+| **噪声 PDF** | 文本层损坏（C0/C1 控制字符、Private Use Area 乱码） | 有效字符率 < 80% 触发 `FAIL_NOISE` |
+| **低密度** | 页面主要是图片/表格，文字很少 | 文本密度 < 20% 触发 `FAIL_DENSITY` |
+
+### 工作原理
+
+采样 PDF **前 3 页**（可配置）进行评估：
+
+```
+有效字符率 = 有效字符 / 总字符
+  ├─ 有效 = 空白 + 可打印 ASCII + CJK + 其他正常 Unicode
+  └─ 无效 = C0/C1 控制字符 + 0x7F + Private Use Area + Variation Selectors
+
+文本密度 = 有效字符 / (采样页数 × 3000估算容量)
+
+扫描件判定（三路信号 OR）：
+  ① 有效字符率 < 10%
+  ② 全部采样页 garbage_dominant（噪声字符 ≥ 30%）
+  ③ 80%+ 页 is_suspicious
+```
+
+### 报告示例
+
+```python
+from src.libs.loader import PdfQualityChecker
+
+checker = PdfQualityChecker(min_valid_ratio=0.80, min_text_density=0.20)
+report = checker.check("data/some_scan.pdf")
+
+print(report.to_dict())
+# {
+#   "file_path": "data/some_scan.pdf",
+#   "valid_char_ratio": 0.05,
+#   "text_density": 0.02,
+#   "is_scanned": True,
+#   "is_noisy": True,
+#   "is_poor_quality": True,
+#   "quality_level": "scanned",
+#   "recommendation": "FAIL_SCAN - 疑似扫描件，建议先通过 OCR 处理后再摄取",
+#   "per_page": [
+#     {"page": 1, "valid_char_ratio": 0.04, "is_suspicious": True, "suspicion_reasons": ["garbage_dominant"]},
+#     ...
+#   ]
+# }
+```
+
+### Pipeline 集成
+
+质量检查作为 **Stage 2b** 嵌入 `IngestionPipeline.run()`，位于 `load` 和 `split` 之间：
+
+```
+Stage 1: integrity   → SHA256 跳过
+Stage 2: load        → PdfLoader 解析
+Stage 2b: quality_check → PdfQualityChecker 评估  ← 新增
+Stage 3: split       → DocumentChunker 分块
+Stage 4: transform   → ChunkRefiner + MetadataEnricher + ImageCaptioner
+Stage 5: embed       → DenseEncoder + SparseEncoder
+Stage 6: upsert      → ChromaDB + BM25
+```
+
+低质量 PDF **默认仅记录警告并继续摄取**（避免硬阻塞用户的合法文档）。如果你的资料库只含正常生成的 PDF，可以把 `fail_on_scanned: true` 让扫描件直接失败，强制走 OCR 流程。
+
+### 配置项
+
+```yaml
+ingestion:
+  quality_check:
+    enabled: true                # 设为 false 跳过质量检查
+    min_valid_ratio: 0.80        # 有效字符率阈值，低于此值触发 FAIL_NOISE
+    min_text_density: 0.20       # 文本密度阈值，低于此值触发 FAIL_DENSITY
+    check_first_n_pages: 3       # 采样前 N 页
+    fail_on_scanned: false       # 扫描件是否直接抛 DocumentQualityError
+```
+
+### 编程接口
+
+```python
+from src.libs.loader import PdfQualityChecker, DocumentQualityError
+
+# 方式 1：直接传文件路径（内部用 PyMuPDF 重新解析）
+checker = PdfQualityChecker()
+report = checker.check("path/to/file.pdf")
+
+# 方式 2：传入已经抽取好的页面文本（推荐，避免重复解析）
+pages = [(1, "第一章 ..."), (2, "第二章 ..."), (3, "第三章 ...")]
+report = checker.check_text(pages)
+
+# 严格模式：扫描件直接抛异常
+strict_checker = PdfQualityChecker(fail_on_scanned=True)
+try:
+    strict_checker.check("scanned.pdf")
+except DocumentQualityError as e:
+    print(f"拒绝摄取：{e}")
+    print(f"质量报告：{e.report.to_dict()}")
+```
 
 ---
 
@@ -424,6 +530,20 @@ ingestion:
   chunk_overlap: 200     # 块之间重叠 token 数，防止边界切断
 ```
 
+### PDF 质量检查调优
+
+详见 [PDF 质量检查](#pdf-质量检查) 章节。常用配置：
+
+```yaml
+ingestion:
+  quality_check:
+    enabled: true
+    min_valid_ratio: 0.80
+    min_text_density: 0.20
+    check_first_n_pages: 3
+    fail_on_scanned: false
+```
+
 ### 检索参数调优
 
 ```yaml
@@ -458,13 +578,18 @@ modular-rag-mcp-server/
 │   │   │   └── query_processor.py
 │   │   └── response/          # 响应构建（含引用格式）
 │   ├── ingestion/
-│   │   ├── pipeline.py        # 摄取流水线
+│   │   ├── pipeline.py        # 摄取流水线（集成 PDF 质量检查）
 │   │   ├── storage/           # ChromaDB + BM25
 │   │   └── splitter/          # 分块策略
 │   ├── libs/
 │   │   ├── llm/              # LLM 工厂（DeepSeek / OpenAI / Ollama）
 │   │   ├── embedding/        # Embedding 工厂（HuggingFace）
 │   │   ├── vector_store/     # VectorStore 工厂（ChromaDB）
+│   │   ├── loader/           # PDF 加载 + 文本层质量检查
+│   │   │   ├── base_loader.py
+│   │   │   ├── pdf_loader.py
+│   │   │   ├── pdf_quality_checker.py   # 扫描件/噪声/低密度检测
+│   │   │   └── file_integrity.py
 │   │   └── redis/            # Redis 缓存（Embedding / LLM 响应 / 会话记忆）
 │   ├── mcp_server/
 │   │   ├── server.py         # MCP 服务入口（stdio）

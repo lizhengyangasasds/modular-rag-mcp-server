@@ -102,6 +102,13 @@ ingestion:
   splitter: "recursive"
   batch_size: 100
 
+  quality_check:
+    enabled: true                       # 设为 false 以跳过质量检查
+    min_valid_ratio: 0.80              # 有效字符率阈值，低于此值触发 FAIL_NOISE
+    min_text_density: 0.20             # 文本密度阈值（字符数 / 估算页面容量）
+    check_first_n_pages: 3            # 采样前 N 页进行评估
+    fail_on_scanned: false             # 扫描件是否直接抛出异常（false 则记录警告后继续）
+
   chunk_refiner:
     use_llm: true
 

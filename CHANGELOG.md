@@ -9,6 +9,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### PDF Text-Layer Quality Checker (`src/libs/loader/pdf_quality_checker.py`)
+
+New pre-ingestion check that detects low-quality PDFs (scanned, noisy, or sparse)
+before they waste compute on meaningless chunks. Runs between `PdfLoader` and
+`DocumentChunker` in the ingestion pipeline.
+
+- **`PdfQualityChecker`** — samples the first N pages (default 3) and evaluates:
+  - **Valid character ratio**: `valid_chars / total_chars` where valid = printable
+    ASCII + whitespace + CJK + most other Unicode (excludes C0/DEL controls,
+    C1 controls 0x80-0x9F, Unicode private use area 0xE000-0xF8FF, variation
+    selectors).
+  - **Text density**: `valid_chars / (sampled_pages * 3000)` — estimated chars
+    vs theoretical page capacity.
+  - **Scanned detection** (3 signals): valid_ratio < 10%, ALL sampled pages
+    garbage-dominant (≥ 30% noise chars), or ≥ 80% of pages individually
+    suspicious.
+  - **Quality level**: `excellent` / `good` / `fair` / `poor` / `scanned`.
+  - `recommendation` field with actionable Chinese-language message
+    (`PASS` / `FAIL_SCAN` / `FAIL_NOISE` / `FAIL_DENSITY`).
+
+- **`QualityReport`** / **`PageReport`** — structured reports with per-page
+  breakdown (`is_suspicious`, `suspicion_reasons`).
+- **`DocumentQualityError`** — raised when `fail_on_scanned=True` and a scanned
+  PDF is detected; carries the full report for inspection.
+- Two check interfaces: `check(path)` (re-parses PDF via PyMuPDF) and
+  `check_text(pages)` (uses pre-extracted page texts — preferred for pipeline
+  integration to avoid double-parsing).
+
+#### Ingestion Pipeline
+
+- **`src/ingestion/pipeline.py`** — new **Stage 2b: Quality Check** between
+  `load` and `split`. Records a `quality_check` stage in trace context with
+  full `QualityReport.to_dict()` for observability. Logged warnings surface
+  when `is_poor_quality` is true, but the pipeline continues by default
+  (use `quality_check.fail_on_scanned: true` to hard-fail).
+
+#### Configuration
+
+- **`config/settings.yaml`** — new `ingestion.quality_check` section:
+  ```yaml
+  ingestion:
+    quality_check:
+      enabled: true
+      min_valid_ratio: 0.80
+      min_text_density: 0.20
+      check_first_n_pages: 3
+      fail_on_scanned: false
+  ```
+
+#### Tests
+
+- **`tests/unit/test_pdf_quality_checker.py`** — 47 unit tests covering all
+  quality tiers, scanned/noise/density detection, character classification
+  (whitelist/blacklist Unicode blocks), `DocumentQualityError` semantics, and
+  end-to-end integration with a real PDF fixture.
+
 #### Redis Caching Layer (`src/libs/redis/`)
 
 New optional caching layer backed by Redis. Provides three independent cache types

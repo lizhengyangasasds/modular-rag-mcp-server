@@ -27,6 +27,7 @@ from src.observability.logger import get_logger
 
 from src.libs.loader.file_integrity import SQLiteIntegrityChecker
 from src.libs.loader.pdf_loader import PdfLoader
+from src.libs.loader.pdf_quality_checker import PdfQualityChecker, DocumentQualityError
 from src.libs.embedding.embedding_factory import EmbeddingFactory
 from src.libs.vector_store.vector_store_factory import VectorStoreFactory
 from src.libs.redis import EmbeddingCache, LLMResponseCache, SessionMemory, from_settings
@@ -148,12 +149,20 @@ class IngestionPipeline:
         self.integrity_checker = SQLiteIntegrityChecker(db_path=str(resolve_path("data/db/ingestion_history.db")))
         logger.info("  ✓ FileIntegrityChecker initialized")
         
-        # Stage 2: Loader
+        # Stage 2: Loader + Quality Check
         self.loader = PdfLoader(
             extract_images=True,
             image_storage_dir=str(resolve_path(f"data/images/{collection}"))
         )
-        logger.info("  ✓ PdfLoader initialized")
+        qc_cfg = getattr(settings.ingestion, "quality_check", None) or {}
+        self.quality_checker = PdfQualityChecker(
+            min_valid_ratio=qc_cfg.get("min_valid_ratio", 0.80),
+            min_text_density=qc_cfg.get("min_text_density", 0.20),
+            check_first_n_pages=qc_cfg.get("check_first_n_pages", 3),
+            fail_on_scanned=qc_cfg.get("fail_on_scanned", False),
+        )
+        self.quality_check_enabled = qc_cfg.get("enabled", True)
+        logger.info(f"  ✓ PdfLoader initialized (quality_check={'ON' if self.quality_check_enabled else 'OFF'})")
         
         # Stage 3: Chunker
         self.chunker = DocumentChunker(settings)
@@ -286,7 +295,43 @@ class IngestionPipeline:
                     "image_count": image_count,
                     "text_preview": document.text,
                 }, elapsed_ms=_elapsed)
-            
+
+            # ─────────────────────────────────────────────────────────────
+            # Stage 2b: Quality Check (between load and chunk)
+            # ─────────────────────────────────────────────────────────────
+            if self.quality_check_enabled:
+                logger.info("\n🔍 Stage 2b: PDF Quality Check")
+                _notify("quality_check", 2)
+
+                _t0_qc = time.monotonic()
+                try:
+                    quality_report = self.quality_checker.check(str(file_path))
+                    _elapsed_qc = (time.monotonic() - _t0_qc) * 1000.0
+
+                    qc_summary = (
+                        f"valid_ratio={quality_report.valid_char_ratio:.1%}, "
+                        f"text_density={quality_report.text_density:.1%}, "
+                        f"level={quality_report.quality_level}"
+                    )
+                    logger.info(f"  Quality: {qc_summary}")
+                    logger.info(f"  Recommendation: {quality_report.recommendation}")
+
+                    stages["quality_check"] = quality_report.to_dict()
+                    if trace is not None:
+                        trace.record_stage("quality_check", quality_report.to_dict(), elapsed_ms=_elapsed_qc)
+
+                    if quality_report.is_poor_quality:
+                        logger.warning(
+                            f"  ⚠️  PDF quality below threshold: {quality_report.recommendation}"
+                        )
+                except DocumentQualityError as e:
+                    _elapsed_qc = (time.monotonic() - _t0_qc) * 1000.0
+                    logger.error(f"  ❌ Quality check failed: {e}")
+                    stages["quality_check"] = {"error": str(e)}
+                    if trace is not None:
+                        trace.record_stage("quality_check", {"error": str(e)}, elapsed_ms=_elapsed_qc)
+                    raise
+
             # ─────────────────────────────────────────────────────────────
             # Stage 3: Chunking
             # ─────────────────────────────────────────────────────────────
