@@ -23,6 +23,10 @@ def _make_fake_pipeline() -> object:
     class FP:
         collection = "test"
         force = False
+        # Quality check stage added later — disable in this older test to
+        # keep the existing callback assertions focused on the original
+        # 6 stages.
+        quality_check_enabled = False
 
     fp = FP()
 

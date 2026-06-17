@@ -30,7 +30,7 @@ from src.libs.loader.pdf_loader import PdfLoader
 from src.libs.loader.pdf_quality_checker import PdfQualityChecker, DocumentQualityError
 from src.libs.embedding.embedding_factory import EmbeddingFactory
 from src.libs.vector_store.vector_store_factory import VectorStoreFactory
-from src.libs.redis import EmbeddingCache, LLMResponseCache, SessionMemory, from_settings
+from src.libs.redis import EmbeddingCache, LLMResponseCache, SessionMemory
 
 # Ingestion layer imports
 from src.ingestion.chunking.document_chunker import DocumentChunker
