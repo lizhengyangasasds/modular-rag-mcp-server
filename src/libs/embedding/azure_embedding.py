@@ -103,6 +103,30 @@ class AzureEmbedding(BaseEmbedding):
         
         # Store any additional kwargs for future use
         self._extra_config = kwargs
+        # Lazy-initialized AzureOpenAI client (cached on first embed() call
+        # to avoid recreating the HTTP connection pool per request).
+        self._client: Any = None
+    
+    def _get_client(self) -> Any:
+        """Return a cached AzureOpenAI client, creating it on first use.
+        
+        Caching avoids paying the cost of an HTTP connection + auth handshake
+        on every embed() call, which dominates latency for small batches.
+        """
+        if self._client is None:
+            try:
+                from openai import AzureOpenAI
+            except ImportError as e:
+                raise RuntimeError(
+                    "OpenAI Python package not installed. "
+                    "Install with: pip install openai"
+                ) from e
+            self._client = AzureOpenAI(
+                api_key=self.api_key,
+                azure_endpoint=self.azure_endpoint,
+                api_version=self.api_version,
+            )
+        return self._client
     
     def embed(
         self,
@@ -128,22 +152,6 @@ class AzureEmbedding(BaseEmbedding):
         # Validate input
         self.validate_texts(texts)
         
-        # Import Azure OpenAI client (lazy import to avoid dependency at module level)
-        try:
-            from openai import AzureOpenAI
-        except ImportError as e:
-            raise RuntimeError(
-                "OpenAI Python package not installed. "
-                "Install with: pip install openai"
-            ) from e
-        
-        # Initialize Azure OpenAI client
-        client = AzureOpenAI(
-            api_key=self.api_key,
-            azure_endpoint=self.azure_endpoint,
-            api_version=self.api_version,
-        )
-        
         # Prepare API call parameters
         # Azure uses 'model' parameter but expects deployment name
         api_params = {
@@ -157,7 +165,8 @@ class AzureEmbedding(BaseEmbedding):
         if dimensions is not None and "text-embedding-3" in self.deployment_name.lower():
             api_params["dimensions"] = dimensions
         
-        # Call Azure OpenAI API
+        # Call Azure OpenAI API (client is cached across calls)
+        client = self._get_client()
         try:
             response = client.embeddings.create(**api_params)
         except Exception as e:

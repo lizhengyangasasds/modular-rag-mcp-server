@@ -322,7 +322,40 @@ class TestAzureEmbedding:
         
         with pytest.raises(AzureEmbeddingError, match="Azure OpenAI Embeddings API call failed"):
             embedding.embed(["test"])
-    
+
+    @patch('openai.AzureOpenAI')
+    def test_client_is_reused_across_embed_calls(
+        self, mock_azure_class: Mock, mock_settings_azure: Any, mock_openai_response: Mock
+    ) -> None:
+        """Client is created lazily and reused across embed() calls (perf).
+
+        Regression test for: AzureOpenAI() was being constructed on every
+        embed() call, paying the full HTTP connection + auth handshake cost
+        for each batch. The client should be created once and cached.
+        """
+        mock_client = Mock()
+        mock_client.embeddings.create.return_value = mock_openai_response
+        mock_azure_class.return_value = mock_client
+
+        embedding = AzureEmbedding(
+            mock_settings_azure,
+            api_key="test-key",
+            azure_endpoint="https://test.openai.azure.com/",
+        )
+
+        # Multiple embed calls should not recreate the client
+        embedding.embed(["hello"])
+        embedding.embed(["world"])
+        embedding.embed(["foo", "bar"])
+
+        # AzureOpenAI should have been constructed exactly once
+        assert mock_azure_class.call_count == 1, (
+            f"Expected AzureOpenAI to be constructed once, "
+            f"but it was called {mock_azure_class.call_count} times"
+        )
+        # And the same client instance should have handled all 3 calls
+        assert mock_client.embeddings.create.call_count == 3
+
     def test_get_dimension_exact_match(self, mock_settings_azure: Any) -> None:
         """Test get_dimension with exact deployment name match."""
         mock_settings_azure.embedding.deployment_name = "text-embedding-3-small"

@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 import os
 from pathlib import Path
 from typing import Any, Optional
 
 from src.libs.llm.base_llm import ChatResponse, Message
 from src.libs.llm.base_vision_llm import BaseVisionLLM, ImageInput
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIVisionLLMError(RuntimeError):
@@ -378,5 +381,10 @@ class OpenAIVisionLLM(BaseVisionLLM):
                     return error.get("message", str(error))
                 return str(error)
             return response.text
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "Failed to JSON-parse OpenAI Vision error response; "
+                "falling back to raw text: %s",
+                exc,
+            )
             return response.text or "Unknown error"

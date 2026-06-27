@@ -244,7 +244,13 @@ class SessionMemory:
         return f"rag:{self._KEY_PREFIX}:{session_id}"
 
     def _refresh_ttl(self, key: str) -> None:
+        """Sliding expiry refresh. Best-effort: failures are logged but not raised.
+
+        Redis TTL refresh is a non-critical optimization; if it fails the
+        session still works, it just expires sooner. We log so operators can
+        spot Redis instability without crashes masking it.
+        """
         try:
             self._client.expire(key, self._ttl)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Redis TTL refresh failed for key=%s: %s", key, exc)

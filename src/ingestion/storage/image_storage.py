@@ -10,11 +10,14 @@ Design Principles:
 - Organized: Images grouped by collection for namespace isolation
 """
 
+import logging
 import sqlite3
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Union
+
+logger = logging.getLogger(__name__)
 
 
 class ImageStorage:
@@ -431,10 +434,11 @@ class ImageStorage:
         if remove_file and deleted:
             try:
                 Path(file_path).unlink(missing_ok=True)
-            except Exception:
-                # Log but don't fail if file deletion fails
-                pass
-        
+            except Exception as exc:
+                # File deletion failure shouldn't block the DB delete
+                # but operators need visibility on persistent issues.
+                logger.warning("Failed to delete image file %s: %s", file_path, exc)
+
         return deleted
     
     def get_collection_stats(self, collection: str) -> Dict[str, any]:
@@ -460,8 +464,12 @@ class ImageStorage:
                 file_path = Path(img["file_path"])
                 if file_path.exists():
                     total_size += file_path.stat().st_size
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "Failed to stat image file %s: %s",
+                    img.get("file_path", "<unknown>"),
+                    exc,
+                )
         
         return {
             "total_images": len(images),

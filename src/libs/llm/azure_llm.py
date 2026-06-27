@@ -7,10 +7,13 @@ and endpoint configuration.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict, List, Optional
 
 from src.libs.llm.base_llm import BaseLLM, ChatResponse, Message
+
+logger = logging.getLogger(__name__)
 
 
 class AzureLLMError(RuntimeError):
@@ -245,5 +248,9 @@ class AzureLLM(BaseLLM):
                     return error.get("message", str(error))
                 return str(error)
             return response.text
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "Failed to JSON-parse Azure error response; falling back to raw text: %s",
+                exc,
+            )
             return response.text or "Unknown error"

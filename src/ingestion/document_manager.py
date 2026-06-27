@@ -305,7 +305,10 @@ class DocumentManager:
                 where={"doc_hash": source_hash}, include=[]
             )
             return len(results.get("ids", []))
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to count chunks for source_hash=%s: %s", source_hash, exc
+            )
             return 0
 
     def _get_chunk_ids(self, source_hash: str) -> List[str]:
@@ -315,14 +318,20 @@ class DocumentManager:
                 where={"doc_hash": source_hash}, include=[]
             )
             return results.get("ids", [])
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch chunk ids for source_hash=%s: %s", source_hash, exc
+            )
             return []
 
     def _count_images(self, source_hash: str) -> int:
         """Count images belonging to *source_hash*."""
         try:
             return len(self.images.list_images(doc_hash=source_hash))
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to count images for source_hash=%s: %s", source_hash, exc
+            )
             return 0
 
     def _get_image_ids(self, source_hash: str) -> List[str]:
@@ -330,7 +339,10 @@ class DocumentManager:
         try:
             imgs = self.images.list_images(doc_hash=source_hash)
             return [img["image_id"] for img in imgs]
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch image ids for source_hash=%s: %s", source_hash, exc
+            )
             return []
 
     def _hash_from_path(self, source_path: str) -> Optional[str]:
@@ -339,6 +351,8 @@ class DocumentManager:
             for rec in self.integrity.list_processed():
                 if rec["file_path"] == source_path:
                     return rec["file_hash"]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(
+                "Integrity lookup by path failed (non-critical): %s", exc
+            )
         return None
