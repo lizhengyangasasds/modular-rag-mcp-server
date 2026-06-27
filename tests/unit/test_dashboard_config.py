@@ -8,13 +8,9 @@ Covers:
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.observability.dashboard.services.config_service import (
-    ComponentInfo,
     ConfigService,
 )
-
 
 # ── Fake Settings ────────────────────────────────────────────────────
 

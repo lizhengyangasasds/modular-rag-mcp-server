@@ -14,7 +14,7 @@ Layout:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import streamlit as st
 
@@ -37,7 +37,7 @@ def render() -> None:
     st.subheader(f"📋 Trace History ({len(traces)})")
 
     for idx, trace in enumerate(traces):
-        trace_id = trace.get("trace_id", "unknown")
+        trace.get("trace_id", "unknown")
         started = trace.get("started_at", "—")
         total_ms = trace.get("elapsed_ms")
         total_label = f"{total_ms:.0f} ms" if total_ms is not None else "—"
@@ -139,12 +139,12 @@ def render() -> None:
 
 
 def _render_ingestion_diagnostics(
-    stages_by_name: Dict[str, Any],
-    load_d: Dict[str, Any],
-    split_d: Dict[str, Any],
-    transform_d: Dict[str, Any],
-    embed_d: Dict[str, Any],
-    upsert_d: Dict[str, Any],
+    stages_by_name: dict[str, Any],
+    load_d: dict[str, Any],
+    split_d: dict[str, Any],
+    transform_d: dict[str, Any],
+    embed_d: dict[str, Any],
+    upsert_d: dict[str, Any],
 ) -> None:
     """Render diagnostic hints for ingestion pipeline stages."""
     expected = ["load", "split", "transform", "embed", "upsert"]
@@ -199,7 +199,7 @@ def _render_ingestion_diagnostics(
 # Per-stage renderers
 # ═══════════════════════════════════════════════════════════════
 
-def _render_load_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
+def _render_load_stage(data: dict[str, Any], *, trace_idx: int = 0) -> None:
     """Render Load stage: raw document preview."""
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -224,7 +224,7 @@ def _render_load_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
         st.info("No text preview recorded in this trace.")
 
 
-def _render_split_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
+def _render_split_stage(data: dict[str, Any], *, trace_idx: int = 0) -> None:
     """Render Split stage: chunk list with texts."""
     c1, c2 = st.columns(2)
     with c1:
@@ -253,7 +253,7 @@ def _render_split_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
         st.info("No chunk text recorded. Re-run ingestion to generate new traces.")
 
 
-def _render_transform_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
+def _render_transform_stage(data: dict[str, Any], *, trace_idx: int = 0) -> None:
     """Render Transform stage: before/after refinement + enrichment metadata."""
     # Summary metrics
     c1, c2, c3 = st.columns(3)
@@ -338,7 +338,7 @@ def _render_transform_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None
         st.info("No per-chunk transform data recorded. Re-run ingestion for new traces.")
 
 
-def _render_embed_stage(data: Dict[str, Any]) -> None:
+def _render_embed_stage(data: dict[str, Any]) -> None:
     """Render Embed stage: dual-path Dense + Sparse encoding details."""
     # ── Overview metrics ──
     c1, c2, c3, c4 = st.columns(4)
@@ -395,7 +395,7 @@ def _render_embed_stage(data: Dict[str, Any]) -> None:
                     st.table(term_rows)
 
 
-def _render_upsert_stage(data: Dict[str, Any]) -> None:
+def _render_upsert_stage(data: dict[str, Any]) -> None:
     """Render Upsert stage: per-store details with chunk mapping."""
     dense_store = data.get("dense_store", {})
     sparse_store = data.get("sparse_store", {})

@@ -10,7 +10,7 @@ Layout:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import streamlit as st
 
@@ -48,7 +48,7 @@ def render() -> None:
     st.subheader(f"📋 Query History ({len(traces)})")
 
     for idx, trace in enumerate(traces):
-        trace_id = trace.get("trace_id", "unknown")
+        trace.get("trace_id", "unknown")
         started = trace.get("started_at", "—")
         total_ms = trace.get("elapsed_ms")
         total_label = f"{total_ms:.0f} ms" if total_ms is not None else "—"
@@ -172,11 +172,11 @@ def render() -> None:
 
 
 def _render_diagnostics(
-    stages_by_name: Dict[str, Any],
-    dense_d: Dict[str, Any],
-    sparse_d: Dict[str, Any],
-    fusion_d: Dict[str, Any],
-    rerank_d: Dict[str, Any],
+    stages_by_name: dict[str, Any],
+    dense_d: dict[str, Any],
+    sparse_d: dict[str, Any],
+    fusion_d: dict[str, Any],
+    rerank_d: dict[str, Any],
     dense_count: int,
     sparse_count: int,
 ) -> None:
@@ -240,7 +240,7 @@ def _render_diagnostics(
             st.info(msg)
 
 
-def _render_evaluate_button(trace: Dict[str, Any], idx: int) -> None:
+def _render_evaluate_button(trace: dict[str, Any], idx: int) -> None:
     """Render a Ragas evaluate button for a single query trace.
 
     Re-runs retrieval for the stored query and evaluates with
@@ -306,9 +306,9 @@ def _render_evaluate_button(trace: Dict[str, Any], idx: int) -> None:
 
 def _evaluate_single_trace(
     query: str,
-    meta: Dict[str, Any],
-    user_answer: Optional[str] = None,
-) -> Dict[str, Any]:
+    meta: dict[str, Any],
+    user_answer: str | None = None,
+) -> dict[str, Any]:
     """Re-run retrieval and evaluate a single query with Ragas.
 
     Returns dict with 'metrics' (score dict) or 'error' (str).
@@ -316,7 +316,7 @@ def _evaluate_single_trace(
     try:
         from dataclasses import replace as dc_replace
 
-        from src.core.settings import load_settings, EvaluationSettings
+        from src.core.settings import EvaluationSettings, load_settings
         from src.libs.evaluator.evaluator_factory import EvaluatorFactory
 
         settings = load_settings()
@@ -343,7 +343,7 @@ def _evaluate_single_trace(
         if user_answer:
             answer = user_answer
         else:
-            _MAX_ANSWER_CHARS = 1500
+            _MAX_ANSWER_CHARS = 1500  # noqa: N806
             texts = []
             for c in chunks:
                 if hasattr(c, "text"):
@@ -379,11 +379,11 @@ def _retrieve_chunks(
 ) -> list:
     """Re-run HybridSearch + Rerank to retrieve chunks for evaluation."""
     try:
+        from src.core.query_engine.dense_retriever import create_dense_retriever
         from src.core.query_engine.hybrid_search import create_hybrid_search
         from src.core.query_engine.query_processor import QueryProcessor
-        from src.core.query_engine.dense_retriever import create_dense_retriever
-        from src.core.query_engine.sparse_retriever import create_sparse_retriever
         from src.core.query_engine.reranker import create_core_reranker
+        from src.core.query_engine.sparse_retriever import create_sparse_retriever
         from src.ingestion.storage.bm25_indexer import BM25Indexer
         from src.libs.embedding.embedding_factory import EmbeddingFactory
         from src.libs.vector_store.vector_store_factory import VectorStoreFactory
@@ -431,7 +431,7 @@ def _retrieve_chunks(
         return []
 
 
-def _display_eval_metrics(result: Dict[str, Any]) -> None:
+def _display_eval_metrics(result: dict[str, Any]) -> None:
     """Display evaluation result (metrics or error)."""
     if "error" in result:
         st.error(f"❌ Evaluation failed: {result['error']}")
@@ -453,11 +453,11 @@ def _display_eval_metrics(result: Dict[str, Any]) -> None:
 
 
 def _extract_pipeline_chunks(
-    timings: List[Dict[str, Any]],
-    meta: Dict[str, Any],
-) -> Dict[str, List[Dict[str, Any]]]:
+    timings: list[dict[str, Any]],
+    meta: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
     """Extract chunk lists from each pipeline stage."""
-    result: Dict[str, List[Dict[str, Any]]] = {}
+    result: dict[str, list[dict[str, Any]]] = {}
     for stage in timings:
         name = stage.get("stage_name", "")
         data = stage.get("data") or {}
@@ -474,7 +474,7 @@ def _extract_pipeline_chunks(
 # Per-stage renderers
 # ═══════════════════════════════════════════════════════════════
 
-def _render_query_processing_stage(data: Dict[str, Any]) -> None:
+def _render_query_processing_stage(data: dict[str, Any]) -> None:
     """Render Query Processing stage: original query → keywords."""
     c1, c2 = st.columns(2)
     with c1:
@@ -492,7 +492,7 @@ def _render_query_processing_stage(data: Dict[str, Any]) -> None:
         st.warning("No keywords extracted.")
 
 
-def _render_retrieval_stage(data: Dict[str, Any], label: str, *, trace_idx: int = 0) -> None:
+def _render_retrieval_stage(data: dict[str, Any], label: str, *, trace_idx: int = 0) -> None:
     """Render Dense or Sparse retrieval stage: method, counts, chunk list."""
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -513,7 +513,7 @@ def _render_retrieval_stage(data: Dict[str, Any], label: str, *, trace_idx: int 
         st.info(f"No {label.lower()} results returned.")
 
 
-def _render_fusion_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
+def _render_fusion_stage(data: dict[str, Any], *, trace_idx: int = 0) -> None:
     """Render Fusion (RRF) stage: input lists, fused result count, chunk list."""
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -532,7 +532,7 @@ def _render_fusion_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
         st.info("No fusion results.")
 
 
-def _render_rerank_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
+def _render_rerank_stage(data: dict[str, Any], *, trace_idx: int = 0) -> None:
     """Render Rerank stage: method, input/output counts, reranked chunk list."""
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -551,7 +551,7 @@ def _render_rerank_stage(data: Dict[str, Any], *, trace_idx: int = 0) -> None:
         st.info("No reranked results.")
 
 
-def _render_chunk_list(chunks: List[Dict[str, Any]], prefix: str = "chunk") -> None:
+def _render_chunk_list(chunks: list[dict[str, Any]], prefix: str = "chunk") -> None:
     """Render a list of chunk dicts as a compact, readable table with expandable text."""
     for ci, chunk in enumerate(chunks):
         score = chunk.get("score", 0)

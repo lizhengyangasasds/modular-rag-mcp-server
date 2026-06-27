@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from src.core.types import RetrievalResult
 from src.libs.reranker.base_reranker import BaseReranker, NoneReranker
@@ -37,7 +37,7 @@ class RerankError(RuntimeError):
 @dataclass
 class RerankConfig:
     """Configuration for CoreReranker.
-    
+
     Attributes:
         enabled: Whether reranking is enabled
         top_k: Number of results to return after reranking
@@ -53,7 +53,7 @@ class RerankConfig:
 @dataclass
 class RerankResult:
     """Result of a rerank operation.
-    
+
     Attributes:
         results: Reranked list of RetrievalResults
         used_fallback: Whether fallback was used due to backend failure
@@ -61,28 +61,28 @@ class RerankResult:
         reranker_type: Type of reranker used ('llm', 'cross_encoder', 'none')
         original_order: Original results before reranking (for debugging)
     """
-    results: List[RetrievalResult] = field(default_factory=list)
+    results: list[RetrievalResult] = field(default_factory=list)
     used_fallback: bool = False
-    fallback_reason: Optional[str] = None
+    fallback_reason: str | None = None
     reranker_type: str = "none"
-    original_order: Optional[List[RetrievalResult]] = None
+    original_order: list[RetrievalResult] | None = None
 
 
 class CoreReranker:
     """Core layer Reranker with fallback support.
-    
+
     This class wraps libs.reranker implementations and provides:
     1. Type conversion between RetrievalResult and reranker dict format
     2. Graceful fallback when backend fails
     3. Configuration-driven backend selection
     4. TraceContext integration
-    
+
     Design Principles Applied:
     - Pluggable: Backend via RerankerFactory
     - Config-Driven: All parameters from settings
     - Fallback: Returns original order on failure
     - Observable: TraceContext support
-    
+
     Example:
         >>> from src.core.settings import load_settings
         >>> settings = load_settings("config/settings.yaml")
@@ -91,28 +91,28 @@ class CoreReranker:
         >>> reranked = reranker.rerank("query", results)
         >>> print(reranked.results)
     """
-    
+
     def __init__(
         self,
         settings: Settings,
-        reranker: Optional[BaseReranker] = None,
-        config: Optional[RerankConfig] = None,
+        reranker: BaseReranker | None = None,
+        config: RerankConfig | None = None,
     ) -> None:
         """Initialize CoreReranker.
-        
+
         Args:
             settings: Application settings containing rerank configuration.
             reranker: Optional reranker backend. If None, creates via RerankerFactory.
             config: Optional RerankConfig. If None, extracts from settings.
         """
         self.settings = settings
-        
+
         # Extract config from settings or use provided
         if config is not None:
             self.config = config
         else:
             self.config = self._extract_config(settings)
-        
+
         # Initialize reranker backend
         if reranker is not None:
             self._reranker = reranker
@@ -124,16 +124,16 @@ class CoreReranker:
             except Exception as e:
                 logger.warning(f"Failed to create reranker, using NoneReranker: {e}")
                 self._reranker = NoneReranker(settings=settings)
-        
+
         # Determine reranker type for result reporting
         self._reranker_type = self._get_reranker_type()
-    
+
     def _extract_config(self, settings: Settings) -> RerankConfig:
         """Extract RerankConfig from settings.
-        
+
         Args:
             settings: Application settings.
-            
+
         Returns:
             RerankConfig with values from settings.
         """
@@ -148,10 +148,10 @@ class CoreReranker:
         except AttributeError:
             logger.warning("Missing rerank configuration, using defaults (disabled)")
             return RerankConfig(enabled=False)
-    
+
     def _get_reranker_type(self) -> str:
         """Get the type name of the current reranker backend.
-        
+
         Returns:
             String identifier for the reranker type.
         """
@@ -164,13 +164,13 @@ class CoreReranker:
             return "none"
         else:
             return class_name.lower()
-    
-    def _results_to_candidates(self, results: List[RetrievalResult]) -> List[Dict[str, Any]]:
+
+    def _results_to_candidates(self, results: list[RetrievalResult]) -> list[dict[str, Any]]:
         """Convert RetrievalResults to reranker candidate format.
-        
+
         Args:
             results: List of RetrievalResult objects.
-            
+
         Returns:
             List of dicts suitable for reranker input.
         """
@@ -183,28 +183,28 @@ class CoreReranker:
                 "metadata": result.metadata.copy(),
             })
         return candidates
-    
+
     def _candidates_to_results(
         self,
-        candidates: List[Dict[str, Any]],
-        original_results: List[RetrievalResult],
-    ) -> List[RetrievalResult]:
+        candidates: list[dict[str, Any]],
+        original_results: list[RetrievalResult],
+    ) -> list[RetrievalResult]:
         """Convert reranked candidates back to RetrievalResults.
-        
+
         Args:
             candidates: Reranked candidates from reranker.
             original_results: Original results for reference.
-            
+
         Returns:
             List of RetrievalResult in reranked order.
         """
         # Build lookup from original results
         id_to_original = {r.chunk_id: r for r in original_results}
-        
+
         results = []
         for candidate in candidates:
             chunk_id = candidate["id"]
-            
+
             # Get original result or build new one
             if chunk_id in id_to_original:
                 original = id_to_original[chunk_id]
@@ -229,31 +229,31 @@ class CoreReranker:
                     text=candidate.get("text", ""),
                     metadata=candidate.get("metadata", {}),
                 ))
-        
+
         return results
-    
+
     def rerank(
         self,
         query: str,
-        results: List[RetrievalResult],
-        top_k: Optional[int] = None,
-        trace: Optional[Any] = None,
+        results: list[RetrievalResult],
+        top_k: int | None = None,
+        trace: Any | None = None,
         **kwargs: Any,
     ) -> RerankResult:
         """Rerank retrieval results using configured backend.
-        
+
         Args:
             query: The user query string.
             results: List of RetrievalResult objects to rerank.
             top_k: Number of results to return. If None, uses config.top_k.
             trace: Optional TraceContext for observability.
             **kwargs: Additional parameters passed to reranker backend.
-            
+
         Returns:
             RerankResult containing reranked results and metadata.
         """
         effective_top_k = top_k if top_k is not None else self.config.top_k
-        
+
         # Early return for empty or single results
         if not results:
             return RerankResult(
@@ -261,14 +261,14 @@ class CoreReranker:
                 used_fallback=False,
                 reranker_type=self._reranker_type,
             )
-        
+
         if len(results) == 1:
             return RerankResult(
                 results=results[:],
                 used_fallback=False,
                 reranker_type=self._reranker_type,
             )
-        
+
         # If reranking disabled, return top_k results in original order
         if not self.config.enabled or isinstance(self._reranker, NoneReranker):
             return RerankResult(
@@ -277,10 +277,10 @@ class CoreReranker:
                 reranker_type="none",
                 original_order=results[:],
             )
-        
+
         # Convert to reranker input format
         candidates = self._results_to_candidates(results)
-        
+
         # Attempt reranking
         try:
             logger.debug(f"Reranking {len(candidates)} candidates with {self._reranker_type}")
@@ -292,15 +292,15 @@ class CoreReranker:
                 **kwargs,
             )
             _elapsed = (time.monotonic() - _t0) * 1000.0
-            
+
             # Convert back to RetrievalResult
             reranked_results = self._candidates_to_results(reranked_candidates, results)
-            
+
             # Apply top_k limit
             final_results = reranked_results[:effective_top_k]
-            
+
             logger.info(f"Reranking complete: {len(final_results)} results returned")
-            
+
             if trace is not None:
                 trace.record_stage("rerank", {
                     "method": self._reranker_type,
@@ -317,17 +317,17 @@ class CoreReranker:
                         for r in final_results
                     ],
                 }, elapsed_ms=_elapsed)
-            
+
             return RerankResult(
                 results=final_results,
                 used_fallback=False,
                 reranker_type=self._reranker_type,
                 original_order=results[:],
             )
-            
+
         except Exception as e:
             logger.warning(f"Reranking failed, using fallback: {e}")
-            
+
             if self.config.fallback_on_error:
                 # Return original order as fallback
                 fallback_results = []
@@ -342,7 +342,7 @@ class CoreReranker:
                             "rerank_fallback": True,
                         },
                     ))
-                
+
                 return RerankResult(
                     results=fallback_results,
                     used_fallback=True,
@@ -352,12 +352,12 @@ class CoreReranker:
                 )
             else:
                 raise RerankError(f"Reranking failed and fallback disabled: {e}") from e
-    
+
     @property
     def reranker_type(self) -> str:
         """Get the type of the current reranker backend."""
         return self._reranker_type
-    
+
     @property
     def is_enabled(self) -> bool:
         """Check if reranking is enabled."""
@@ -366,14 +366,14 @@ class CoreReranker:
 
 def create_core_reranker(
     settings: Settings,
-    reranker: Optional[BaseReranker] = None,
+    reranker: BaseReranker | None = None,
 ) -> CoreReranker:
     """Factory function to create a CoreReranker instance.
-    
+
     Args:
         settings: Application settings.
         reranker: Optional reranker backend override.
-        
+
     Returns:
         Configured CoreReranker instance.
     """

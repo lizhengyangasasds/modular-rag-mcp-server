@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -37,7 +37,7 @@ MRR_THRESHOLD = 0.0  # Minimum average MRR
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
-def _load_golden_set() -> List[Dict[str, Any]]:
+def _load_golden_set() -> list[dict[str, Any]]:
     """Load golden test set from JSON file."""
     if not GOLDEN_TEST_SET_PATH.exists():
         pytest.skip(f"Golden test set not found: {GOLDEN_TEST_SET_PATH}")
@@ -58,8 +58,8 @@ def _try_create_search_engine() -> Any:
     Skips test if infrastructure is not available.
     """
     try:
-        from src.core.settings import load_settings
         from src.core.query_engine.hybrid_search import HybridSearch
+        from src.core.settings import load_settings
 
         settings = load_settings()
         return HybridSearch(settings)
@@ -118,7 +118,7 @@ class TestRecallRegression:
         if not cases_with_ground_truth:
             pytest.skip("No test cases with expected_chunk_ids defined")
 
-        hit_rates: List[float] = []
+        hit_rates: list[float] = []
         top_k = 10
 
         for tc in cases_with_ground_truth:
@@ -170,7 +170,7 @@ class TestRecallRegression:
         if not cases_with_ground_truth:
             pytest.skip("No test cases with expected_chunk_ids defined")
 
-        mrrs: List[float] = []
+        mrrs: list[float] = []
         top_k = 10
 
         for tc in cases_with_ground_truth:
@@ -179,7 +179,7 @@ class TestRecallRegression:
 
             try:
                 results = self.search.search(query=query, top_k=top_k)
-                retrieved_ids: List[str] = []
+                retrieved_ids: list[str] = []
                 for r in results:
                     if hasattr(r, "chunk_id"):
                         retrieved_ids.append(r.chunk_id)
@@ -212,7 +212,7 @@ class TestRecallRegression:
         This is a basic sanity check – if a query returns zero
         results, there may be an indexing or search issue.
         """
-        empty_queries: List[str] = []
+        empty_queries: list[str] = []
 
         for tc in self.golden_set:
             query = tc["query"]

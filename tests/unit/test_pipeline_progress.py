@@ -4,15 +4,11 @@ Verifies that IngestionPipeline.run() fires the optional on_progress
 callback at each pipeline stage with (stage_name, current, total).
 """
 
-from typing import List, Tuple
 from unittest.mock import MagicMock
 
-import pytest
-
 from src.core.trace.trace_context import TraceContext
-from src.core.types import Document, Chunk
+from src.core.types import Chunk, Document
 from src.ingestion.pipeline import IngestionPipeline
-
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -73,9 +69,9 @@ def _make_fake_pipeline() -> object:
     return fp
 
 
-def _collect_progress(fp) -> List[Tuple[str, int, int]]:
+def _collect_progress(fp) -> list[tuple[str, int, int]]:
     """Run pipeline with a callback and return collected calls."""
-    calls: List[Tuple[str, int, int]] = []
+    calls: list[tuple[str, int, int]] = []
 
     def on_progress(stage: str, current: int, total: int) -> None:
         calls.append((stage, current, total))
@@ -123,7 +119,7 @@ class TestPipelineProgressCallback:
     def test_callback_with_trace(self) -> None:
         """on_progress + trace both work together."""
         fp = _make_fake_pipeline()
-        calls: List[Tuple[str, int, int]] = []
+        calls: list[tuple[str, int, int]] = []
         trace = TraceContext(trace_type="ingestion")
 
         def on_progress(stage: str, current: int, total: int) -> None:

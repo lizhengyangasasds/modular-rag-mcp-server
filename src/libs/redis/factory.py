@@ -17,7 +17,7 @@ Usage::
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from src.libs.redis.embedding_cache import EmbeddingCache
 from src.libs.redis.llm_response_cache import LLMResponseCache
@@ -37,7 +37,7 @@ class CacheBundle:
 
 
 def create_cache_bundle(
-    redis_settings: Optional[object] = None,
+    redis_settings: object | None = None,
     embedding_ttl: int = 604800,
     llm_response_ttl: int = 86400,
     session_ttl: int = 3600,
@@ -56,9 +56,8 @@ def create_cache_bundle(
     """
     # Normalise the settings input so we can accept both a full Settings
     # object and a bare RedisSettings value.
-    enabled = True
     if redis_settings is not None:
-        enabled = getattr(redis_settings, "enabled", True)
+        getattr(redis_settings, "enabled", True)
 
     embedding_cache = EmbeddingCache(
         settings=redis_settings,
@@ -80,7 +79,7 @@ def create_cache_bundle(
     )
 
 
-def from_settings(settings: "Settings") -> CacheBundle:
+def from_settings(settings: Settings) -> CacheBundle:
     """Create a CacheBundle from a fully-loaded Settings object.
 
     Reads TTL values and the enabled flag from ``settings.redis``.

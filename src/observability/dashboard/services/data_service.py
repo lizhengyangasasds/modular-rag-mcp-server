@@ -8,8 +8,7 @@ UI to storage internals.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class DataService:
     # Lazy initialisation
     # ------------------------------------------------------------------
 
-    def _ensure_stores(self, collection: Optional[str] = None) -> None:
+    def _ensure_stores(self, collection: str | None = None) -> None:
         """Create storage objects on first use.
 
         Args:
@@ -78,12 +77,13 @@ class DataService:
     # Public API
     # ------------------------------------------------------------------
 
-    def list_collections(self) -> List[str]:
+    def list_collections(self) -> list[str]:
         """Return all available ChromaDB collection names."""
         try:
-            from src.core.settings import load_settings, resolve_path
             import chromadb
             from chromadb.config import Settings as ChromaSettings
+
+            from src.core.settings import load_settings, resolve_path
 
             settings = load_settings()
             persist_dir = str(
@@ -99,8 +99,8 @@ class DataService:
             return ["default"]
 
     def list_documents(
-        self, collection: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, collection: str | None = None
+    ) -> list[dict[str, Any]]:
         """Return ingested documents as plain dicts (UI-friendly).
 
         Each dict has keys: source_path, source_hash, collection,
@@ -113,8 +113,8 @@ class DataService:
         return [asdict(d) for d in docs]
 
     def get_document_detail(
-        self, doc_id: str, collection: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, doc_id: str, collection: str | None = None
+    ) -> dict[str, Any] | None:
         """Return document detail as a plain dict, or None."""
         self._ensure_stores(collection)
         from dataclasses import asdict
@@ -125,8 +125,8 @@ class DataService:
         return asdict(detail)
 
     def get_chunks(
-        self, source_hash: str, collection: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, source_hash: str, collection: str | None = None
+    ) -> list[dict[str, Any]]:
         """Return chunk records from ChromaDB matching *source_hash*.
 
         Each dict has keys: id, text, metadata.
@@ -137,7 +137,7 @@ class DataService:
                 where={"doc_hash": source_hash},
                 include=["documents", "metadatas"],
             )
-            chunks: List[Dict[str, Any]] = []
+            chunks: list[dict[str, Any]] = []
             ids = results.get("ids", [])
             docs = results.get("documents", [])
             metas = results.get("metadatas", [])
@@ -155,8 +155,8 @@ class DataService:
             return []
 
     def get_images(
-        self, source_hash: str, collection: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, source_hash: str, collection: str | None = None
+    ) -> list[dict[str, Any]]:
         """Return image records for a document."""
         self._ensure_stores(collection)
         try:
@@ -168,8 +168,8 @@ class DataService:
     def delete_document(
         self,
         source_path: str,
-        collection: Optional[str] = None,
-        source_hash: Optional[str] = None,
+        collection: str | None = None,
+        source_hash: str | None = None,
     ) -> Any:
         """Delete a document via the underlying DocumentManager.
 
@@ -183,8 +183,8 @@ class DataService:
         )
 
     def get_collection_stats(
-        self, collection: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, collection: str | None = None
+    ) -> dict[str, Any]:
         """Return aggregate stats as a plain dict."""
         self._ensure_stores(collection)
         from dataclasses import asdict
@@ -192,17 +192,19 @@ class DataService:
         stats = self._manager.get_collection_stats(collection)
         return asdict(stats)
 
-    def reset_all(self) -> Dict[str, Any]:
+    def reset_all(self) -> dict[str, Any]:
         """Delete ALL data: ChromaDB collections, BM25 indexes, images, integrity DB, and trace logs.
 
         Returns a summary dict with counts of what was deleted.
         """
         import shutil
-        from src.core.settings import load_settings, resolve_path
+
         import chromadb
         from chromadb.config import Settings as ChromaSettings
 
-        summary: Dict[str, Any] = {
+        from src.core.settings import load_settings, resolve_path
+
+        summary: dict[str, Any] = {
             "collections_deleted": 0,
             "bm25_cleared": False,
             "images_cleared": False,

@@ -13,7 +13,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import streamlit as st
 
@@ -94,7 +94,7 @@ def render() -> None:
         )
 
     # ── Answer Input Section (for Ragas) ───────────────────────────
-    user_answers: Dict[int, str] = {}
+    user_answers: dict[int, str] = {}
     if backend == "ragas" and golden_path.exists():
         st.divider()
         st.subheader("✏️ Provide Answers (回答输入)")
@@ -163,8 +163,8 @@ def _run_evaluation(
     backend: str,
     golden_path: Path,
     top_k: int,
-    collection: Optional[str],
-    user_answers: Optional[Dict[int, str]] = None,
+    collection: str | None,
+    user_answers: dict[int, str] | None = None,
 ) -> None:
     """Execute an evaluation run and display results.
 
@@ -200,9 +200,9 @@ def _execute_evaluation(
     backend: str,
     golden_path: Path,
     top_k: int,
-    collection: Optional[str],
-    user_answers: Optional[Dict[int, str]] = None,
-) -> Dict[str, Any]:
+    collection: str | None,
+    user_answers: dict[int, str] | None = None,
+) -> dict[str, Any]:
     """Run the evaluation pipeline and return the report dict.
 
     This function imports heavy dependencies lazily to keep the
@@ -212,7 +212,7 @@ def _execute_evaluation(
 
     from src.core.settings import load_settings
     from src.libs.evaluator.evaluator_factory import EvaluatorFactory
-    from src.observability.evaluation.eval_runner import EvalRunner, load_test_set
+    from src.observability.evaluation.eval_runner import EvalRunner
 
     settings = load_settings()
 
@@ -269,9 +269,9 @@ def _try_create_hybrid_search(settings: Any, collection: str = "default") -> Any
     (e.g., no indexed data).
     """
     try:
-        from src.core.query_engine.query_processor import QueryProcessor
-        from src.core.query_engine.hybrid_search import create_hybrid_search
         from src.core.query_engine.dense_retriever import create_dense_retriever
+        from src.core.query_engine.hybrid_search import create_hybrid_search
+        from src.core.query_engine.query_processor import QueryProcessor
         from src.core.query_engine.sparse_retriever import create_sparse_retriever
         from src.ingestion.storage.bm25_indexer import BM25Indexer
         from src.libs.embedding.embedding_factory import EmbeddingFactory
@@ -306,7 +306,7 @@ def _try_create_hybrid_search(settings: Any, collection: str = "default") -> Any
         return None
 
 
-def _render_aggregate_metrics(report: Dict[str, Any]) -> None:
+def _render_aggregate_metrics(report: dict[str, Any]) -> None:
     """Display aggregate metrics as metric cards."""
     st.subheader("📊 Aggregate Metrics")
 
@@ -331,7 +331,7 @@ def _render_aggregate_metrics(report: Dict[str, Any]) -> None:
     )
 
 
-def _render_query_details(report: Dict[str, Any]) -> None:
+def _render_query_details(report: dict[str, Any]) -> None:
     """Display per-query evaluation results in an expandable table."""
     st.subheader("🔍 Per-Query Details")
 
@@ -408,7 +408,7 @@ def _render_history() -> None:
     st.dataframe(rows, use_container_width=True)
 
 
-def _save_to_history(report: Dict[str, Any]) -> None:
+def _save_to_history(report: dict[str, Any]) -> None:
     """Append an evaluation report to the history file."""
     try:
         EVAL_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -422,12 +422,12 @@ def _save_to_history(report: Dict[str, Any]) -> None:
         logger.warning("Failed to save evaluation history: %s", exc)
 
 
-def _load_history() -> List[Dict[str, Any]]:
+def _load_history() -> list[dict[str, Any]]:
     """Load evaluation history from JSONL file."""
     if not EVAL_HISTORY_PATH.exists():
         return []
 
-    entries: List[Dict[str, Any]] = []
+    entries: list[dict[str, Any]] = []
     try:
         with EVAL_HISTORY_PATH.open("r", encoding="utf-8") as f:
             for line in f:
@@ -443,7 +443,7 @@ def _load_history() -> List[Dict[str, Any]]:
     return entries
 
 
-def _load_golden_queries(golden_path: Path) -> List[Dict[str, Any]]:
+def _load_golden_queries(golden_path: Path) -> list[dict[str, Any]]:
     """Load test cases from golden test set for display in the UI.
 
     Returns list of dicts with at least 'query' and optionally

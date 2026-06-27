@@ -6,9 +6,8 @@ for the Overview page.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from src.core.settings import Settings, load_settings
 
@@ -20,7 +19,7 @@ class ComponentInfo:
     name: str
     provider: str
     model: str
-    extra: Dict[str, Any]
+    extra: dict[str, Any]
 
 
 class ConfigService:
@@ -30,9 +29,9 @@ class ConfigService:
         settings_path: Path to ``settings.yaml``.
     """
 
-    def __init__(self, settings_path: Optional[str] = None) -> None:
+    def __init__(self, settings_path: str | None = None) -> None:
         self._settings_path = settings_path
-        self._settings: Optional[Settings] = None
+        self._settings: Settings | None = None
 
     # ── lazy load ────────────────────────────────────────────────────
 
@@ -51,10 +50,10 @@ class ConfigService:
 
     # ── component cards ──────────────────────────────────────────────
 
-    def get_component_cards(self) -> List[ComponentInfo]:
+    def get_component_cards(self) -> list[ComponentInfo]:
         """Return a list of component summaries for the Overview page."""
         s = self._load()
-        cards: List[ComponentInfo] = []
+        cards: list[ComponentInfo] = []
 
         # LLM
         cards.append(ComponentInfo(

@@ -22,10 +22,8 @@ Usage:
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +60,7 @@ class QualityReport:
     is_poor_quality: bool = False
     quality_level: str = "unknown"
     recommendation: str = "unknown"
-    per_page_reports: List["PageReport"] = field(default_factory=list)
+    per_page_reports: list[PageReport] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -91,7 +89,7 @@ class PageReport:
     total_char_count: int
     valid_char_ratio: float
     is_suspicious: bool
-    suspicion_reasons: List[str] = field(default_factory=list)
+    suspicion_reasons: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -148,7 +146,7 @@ class PdfQualityChecker:
         self.check_first_n_pages = check_first_n_pages
         self.fail_on_scanned = fail_on_scanned
 
-    def check(self, file_path: Union[str, Path]) -> QualityReport:
+    def check(self, file_path: str | Path) -> QualityReport:
         """Assess the text-layer quality of a PDF.
 
         Args:
@@ -175,7 +173,7 @@ class PdfQualityChecker:
         doc = fitz.open(path)
         page_count = len(doc)
 
-        sampled_pages: List[tuple[int, str]] = []
+        sampled_pages: list[tuple[int, str]] = []
         for i in range(min(self.check_first_n_pages, page_count)):
             page = doc[i]
             text = page.get_text("text") or ""
@@ -185,7 +183,7 @@ class PdfQualityChecker:
 
         return self._build_report(path, sampled_pages, page_count)
 
-    def check_text(self, pages: List[tuple[int, str]]) -> QualityReport:
+    def check_text(self, pages: list[tuple[int, str]]) -> QualityReport:
         """Assess quality using pre-extracted page texts.
 
         This overload accepts the result of a PdfLoader (List[Page]) directly,
@@ -248,8 +246,8 @@ class PdfQualityChecker:
 
     def _build_report(
         self,
-        path: Union[str, Path],
-        sampled_pages: List[tuple[int, str]],
+        path: str | Path,
+        sampled_pages: list[tuple[int, str]],
         page_count: int,
     ) -> QualityReport:
         """Compute quality metrics and generate a QualityReport."""
@@ -270,7 +268,7 @@ class PdfQualityChecker:
 
         total_valid = 0
         total_chars = 0
-        per_page: List[PageReport] = []
+        per_page: list[PageReport] = []
 
         for page_num, text in sampled_pages:
             page_report = self._assess_page(page_num, text)
@@ -326,7 +324,7 @@ class PdfQualityChecker:
         noise_chars = sum(1 for c in text if not self._is_valid_char(c))
         noise_ratio = noise_chars / max(total, 1)
 
-        reasons: List[str] = []
+        reasons: list[str] = []
         if noise_ratio > self.max_noise_ratio:
             reasons.append(f"high_noise_ratio={noise_ratio:.1%}")
         if self._is_garbage_dominant(text):
@@ -440,7 +438,7 @@ class PdfQualityChecker:
         sentence_markers = sum(1 for c in text if c in "。！？.!?，,;；:")
         return sentence_markers / len(text) < 0.001
 
-    def _detect_scanned(self, per_page: List[PageReport], valid_ratio: float) -> bool:
+    def _detect_scanned(self, per_page: list[PageReport], valid_ratio: float) -> bool:
         """Detect if the PDF is primarily a scanned document.
 
         Uses three independent signals:
@@ -504,6 +502,6 @@ class PdfQualityChecker:
 class DocumentQualityError(Exception):
     """Raised when a PDF fails quality check and fail_on_scanned=True."""
 
-    def __init__(self, message: str, report: Optional[QualityReport] = None):
+    def __init__(self, message: str, report: QualityReport | None = None):
         super().__init__(message)
         self.report = report

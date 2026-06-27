@@ -8,14 +8,14 @@ Llama, Mistral, CodeLlama, etc. on local hardware.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.libs.llm.base_llm import BaseLLM, ChatResponse, Message
 
 
 class OllamaLLMError(RuntimeError):
     """Raised when Ollama API call fails.
-    
+
     This exception provides clear error messages without exposing
     sensitive configuration details like internal URLs or credentials.
     """
@@ -23,93 +23,93 @@ class OllamaLLMError(RuntimeError):
 
 class OllamaLLM(BaseLLM):
     """Ollama LLM provider implementation for local inference.
-    
+
     This class implements the BaseLLM interface for Ollama's chat API,
     enabling local LLM inference without cloud dependencies.
-    
+
     Attributes:
         base_url: The base URL for the Ollama server (default: http://localhost:11434).
         model: The model identifier to use (e.g., 'llama3', 'mistral').
         default_temperature: Default temperature for generation.
         default_max_tokens: Default max tokens for generation (num_predict in Ollama).
         timeout: Request timeout in seconds.
-    
+
     Example:
         >>> from src.core.settings import load_settings
         >>> settings = load_settings('config/settings.yaml')
         >>> llm = OllamaLLM(settings)
         >>> response = llm.chat([Message(role='user', content='Hello')])
     """
-    
+
     DEFAULT_BASE_URL = "http://localhost:11434"
     DEFAULT_TIMEOUT = 120.0  # Longer timeout for local inference
-    
+
     def __init__(
         self,
         settings: Any,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the Ollama LLM provider.
-        
+
         Args:
             settings: Application settings containing LLM configuration.
             base_url: Optional base URL override (falls back to env var OLLAMA_BASE_URL).
             timeout: Optional timeout override for requests.
             **kwargs: Additional configuration overrides.
-        
+
         Raises:
             ValueError: If required configuration is missing.
         """
         self.model = settings.llm.model
         self.default_temperature = settings.llm.temperature
         self.default_max_tokens = settings.llm.max_tokens
-        
+
         # Base URL: explicit > env var > default
         self.base_url = (
-            base_url 
-            or os.environ.get("OLLAMA_BASE_URL") 
+            base_url
+            or os.environ.get("OLLAMA_BASE_URL")
             or self.DEFAULT_BASE_URL
         )
-        
+
         # Timeout: explicit > default
         self.timeout = timeout or self.DEFAULT_TIMEOUT
-        
+
         # Store any additional kwargs for future use
         self._extra_config = kwargs
-    
+
     def chat(
         self,
-        messages: List[Message],
-        trace: Optional[Any] = None,
+        messages: list[Message],
+        trace: Any | None = None,
         **kwargs: Any,
     ) -> ChatResponse:
         """Generate a chat completion using Ollama API.
-        
+
         Args:
             messages: List of conversation messages.
             trace: Optional TraceContext for observability (reserved for Stage F).
             **kwargs: Override parameters (temperature, max_tokens, etc.).
-        
+
         Returns:
             ChatResponse with generated content and metadata.
-        
+
         Raises:
             ValueError: If messages are invalid.
             OllamaLLMError: If API call fails.
         """
         # Validate input
         self.validate_messages(messages)
-        
+
         # Prepare request parameters
         temperature = kwargs.get("temperature", self.default_temperature)
         max_tokens = kwargs.get("max_tokens", self.default_max_tokens)
         model = kwargs.get("model", self.model)
-        
+
         # Convert messages to Ollama API format
         api_messages = [{"role": m.role, "content": m.content} for m in messages]
-        
+
         # Make API call
         try:
             response_data = self._call_api(
@@ -118,7 +118,7 @@ class OllamaLLM(BaseLLM):
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            
+
             # Parse response - Ollama returns different format than OpenAI
             # Handle both /api/chat (streaming disabled) response format
             if "message" in response_data:
@@ -131,7 +131,7 @@ class OllamaLLM(BaseLLM):
                 raise OllamaLLMError(
                     "[Ollama] Unexpected response format: missing 'message' or 'response' key"
                 )
-            
+
             # Build usage stats if available
             usage = None
             if "eval_count" in response_data or "prompt_eval_count" in response_data:
@@ -143,7 +143,7 @@ class OllamaLLM(BaseLLM):
                         response_data.get("eval_count", 0)
                     ),
                 }
-            
+
             return ChatResponse(
                 content=content,
                 model=response_data.get("model", model),
@@ -160,37 +160,37 @@ class OllamaLLM(BaseLLM):
             raise OllamaLLMError(
                 f"[Ollama] API call failed: {type(e).__name__}: {e}"
             ) from e
-    
+
     def _call_api(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model: str,
         temperature: float,
         max_tokens: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Make the actual API call to Ollama.
-        
+
         This method is separated to allow easy mocking in tests.
-        
+
         Args:
             messages: Messages in API format.
             model: Model identifier.
             temperature: Generation temperature.
             max_tokens: Maximum tokens to generate (num_predict in Ollama).
-        
+
         Returns:
             Raw API response as dictionary.
-        
+
         Raises:
             OllamaLLMError: If the API call fails.
         """
         import httpx
-        
+
         url = f"{self.base_url.rstrip('/')}/api/chat"
         headers = {
             "Content-Type": "application/json",
         }
-        
+
         # Ollama uses 'num_predict' instead of 'max_tokens'
         # and 'options' object for model parameters
         payload = {
@@ -202,17 +202,17 @@ class OllamaLLM(BaseLLM):
                 "num_predict": max_tokens,
             },
         }
-        
+
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 response = client.post(url, json=payload, headers=headers)
-                
+
                 if response.status_code != 200:
                     error_detail = self._parse_error_response(response)
                     raise OllamaLLMError(
                         f"[Ollama] API error (HTTP {response.status_code}): {error_detail}"
                     )
-                
+
                 return response.json()
         except httpx.TimeoutException as e:
             raise OllamaLLMError(
@@ -228,13 +228,13 @@ class OllamaLLM(BaseLLM):
             raise OllamaLLMError(
                 f"[Ollama] Request failed: {type(e).__name__}"
             ) from e
-    
+
     def _parse_error_response(self, response: Any) -> str:
         """Parse error details from API response.
-        
+
         Args:
             response: The HTTP response object.
-        
+
         Returns:
             Human-readable error message without exposing sensitive details.
         """

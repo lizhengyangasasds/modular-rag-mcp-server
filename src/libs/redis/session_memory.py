@@ -18,9 +18,8 @@ TTL is refreshed on every access (sliding expiry).
 from __future__ import annotations
 
 import json
-import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.core.settings import RedisSettings
 from src.libs.redis.client import get_redis_client
@@ -41,22 +40,22 @@ class SessionMemory:
 
     def __init__(
         self,
-        settings: Optional[RedisSettings] = None,
-        ttl: Optional[int] = None,
+        settings: RedisSettings | None = None,
+        ttl: int | None = None,
     ) -> None:
         self._ttl = ttl or 3600
         self._client = get_redis_client(settings)
-        self._stats: Dict[str, int] = {"hits": 0, "misses": 0, "errors": 0}
+        self._stats: dict[str, int] = {"hits": 0, "misses": 0, "errors": 0}
 
     @property
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return self._stats.copy()
 
     # ------------------------------------------------------------------
     # Session lifecycle
     # ------------------------------------------------------------------
 
-    def get_or_create(self, session_id: str) -> Dict[str, Any]:
+    def get_or_create(self, session_id: str) -> dict[str, Any]:
         """Return existing session data or create a new empty one.
 
         Calling this method also refreshes the TTL (sliding window).
@@ -143,12 +142,12 @@ class SessionMemory:
             logger.warning(f"SessionMemory.add_message failed: {e}")
             return False
 
-    def get_history(self, session_id: str, limit: int = 20) -> List[Dict[str, str]]:
+    def get_history(self, session_id: str, limit: int = 20) -> list[dict[str, str]]:
         """Return the last *limit* messages from session history."""
         try:
             key = self._key(session_id)
             history_raw = self._client.hget(key, "history") or "[]"
-            history: List[Dict[str, str]] = json.loads(history_raw)
+            history: list[dict[str, str]] = json.loads(history_raw)
             self._refresh_ttl(key)
             return history[-limit:]
         except Exception as e:
@@ -156,7 +155,7 @@ class SessionMemory:
             logger.warning(f"SessionMemory.get_history failed: {e}")
             return []
 
-    def get_full_history(self, session_id: str) -> List[Dict[str, str]]:
+    def get_full_history(self, session_id: str) -> list[dict[str, str]]:
         """Return the complete session history."""
         return self.get_history(session_id, limit=999999)
 
@@ -179,21 +178,21 @@ class SessionMemory:
             logger.warning(f"SessionMemory.set_last_query failed: {e}")
             return False
 
-    def get_last_query(self, session_id: str) -> Optional[str]:
+    def get_last_query(self, session_id: str) -> str | None:
         """Return the most recent user query, or None."""
         try:
             key = self._key(session_id)
             val = self._client.hget(key, "last_query")
             self._refresh_ttl(key)
             return val if val else None
-        except Exception as e:
+        except Exception:
             self._stats["errors"] += 1
             return None
 
     def set_last_results(
         self,
         session_id: str,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
     ) -> bool:
         """Cache the last retrieval results for potential re-ranking / reuse."""
         try:
@@ -209,7 +208,7 @@ class SessionMemory:
             logger.warning(f"SessionMemory.set_last_results failed: {e}")
             return False
 
-    def get_last_results(self, session_id: str) -> List[Dict[str, Any]]:
+    def get_last_results(self, session_id: str) -> list[dict[str, Any]]:
         """Return the last retrieval results, or an empty list."""
         try:
             key = self._key(session_id)
@@ -225,7 +224,7 @@ class SessionMemory:
     # Session listing (admin / debug)
     # ------------------------------------------------------------------
 
-    def list_sessions(self) -> List[str]:
+    def list_sessions(self) -> list[str]:
         """Return all active session IDs."""
         try:
             pattern = f"rag:{self._KEY_PREFIX}:*"

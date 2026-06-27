@@ -6,7 +6,8 @@ It is designed for fast regression checks and sanity validation.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 
@@ -24,7 +25,7 @@ class CustomEvaluator(BaseEvaluator):
     def __init__(
         self,
         settings: Any = None,
-        metrics: Optional[Sequence[str]] = None,
+        metrics: Sequence[str] | None = None,
         **kwargs: Any,
     ) -> None:
         self.settings = settings
@@ -49,12 +50,12 @@ class CustomEvaluator(BaseEvaluator):
     def evaluate(
         self,
         query: str,
-        retrieved_chunks: List[Any],
-        generated_answer: Optional[str] = None,
-        ground_truth: Optional[Any] = None,
-        trace: Optional[Any] = None,
+        retrieved_chunks: list[Any],
+        generated_answer: str | None = None,
+        ground_truth: Any | None = None,
+        trace: Any | None = None,
         **kwargs: Any,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Compute requested metrics for the given retrieval results.
 
         Args:
@@ -74,7 +75,7 @@ class CustomEvaluator(BaseEvaluator):
         retrieved_ids = self._extract_ids(retrieved_chunks, label="retrieved_chunks")
         ground_truth_ids = self._extract_ground_truth_ids(ground_truth)
 
-        results: Dict[str, float] = {}
+        results: dict[str, float] = {}
 
         if "hit_rate" in self.metrics:
             results["hit_rate"] = self._compute_hit_rate(retrieved_ids, ground_truth_ids)
@@ -83,7 +84,7 @@ class CustomEvaluator(BaseEvaluator):
 
         return results
 
-    def _metrics_from_settings(self, settings: Any) -> List[str]:
+    def _metrics_from_settings(self, settings: Any) -> list[str]:
         """Extract metrics list from settings if available."""
         if settings is None:
             return []
@@ -92,7 +93,7 @@ class CustomEvaluator(BaseEvaluator):
             return []
         return [str(metric) for metric in metrics]
 
-    def _extract_ground_truth_ids(self, ground_truth: Optional[Any]) -> List[str]:
+    def _extract_ground_truth_ids(self, ground_truth: Any | None) -> list[str]:
         """Extract ground truth ids from various input shapes."""
         if ground_truth is None:
             return []
@@ -110,9 +111,9 @@ class CustomEvaluator(BaseEvaluator):
             "Expected str, dict, list, or None."
         )
 
-    def _extract_ids(self, items: Iterable[Any], label: str) -> List[str]:
+    def _extract_ids(self, items: Iterable[Any], label: str) -> list[str]:
         """Extract ids from a list of items."""
-        ids: List[str] = []
+        ids: list[str] = []
         for index, item in enumerate(items):
             if isinstance(item, str):
                 ids.append(item)

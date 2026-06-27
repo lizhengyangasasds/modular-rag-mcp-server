@@ -23,7 +23,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -55,10 +55,10 @@ def _start_server() -> subprocess.Popen:
 
 def _send_jsonrpc(
     proc: subprocess.Popen,
-    messages: List[Dict[str, Any]],
+    messages: list[dict[str, Any]],
     expected_responses: int,
     timeout: float = 15.0,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Send JSON-RPC messages and collect the expected number of responses.
 
     Uses a background thread to read stdout so that the ``timeout`` is
@@ -80,7 +80,7 @@ def _send_jsonrpc(
         proc.stdin.write(json.dumps(msg) + "\n")
         proc.stdin.flush()
 
-    responses: List[Dict[str, Any]] = []
+    responses: list[dict[str, Any]] = []
     stop_event = threading.Event()
 
     def _reader() -> None:
@@ -111,7 +111,7 @@ def _send_jsonrpc(
     return responses
 
 
-def _find(responses: List[Dict[str, Any]], req_id: int) -> Optional[Dict[str, Any]]:
+def _find(responses: list[dict[str, Any]], req_id: int) -> dict[str, Any] | None:
     """Find a response by request id."""
     for r in responses:
         if r.get("id") == req_id:
@@ -131,7 +131,7 @@ def _terminate(proc: subprocess.Popen) -> None:
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
-INIT_REQUEST: Dict[str, Any] = {
+INIT_REQUEST: dict[str, Any] = {
     "jsonrpc": "2.0",
     "id": 1,
     "method": "initialize",
@@ -142,7 +142,7 @@ INIT_REQUEST: Dict[str, Any] = {
     },
 }
 
-INITIALIZED_NOTIFICATION: Dict[str, Any] = {
+INITIALIZED_NOTIFICATION: dict[str, Any] = {
     "jsonrpc": "2.0",
     "method": "notifications/initialized",
 }

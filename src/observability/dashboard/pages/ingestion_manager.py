@@ -17,14 +17,14 @@ from src.observability.dashboard.services.data_service import DataService
 
 
 def _run_ingestion(
-    uploaded_file: "st.runtime.uploaded_file_manager.UploadedFile",
+    uploaded_file: st.runtime.uploaded_file_manager.UploadedFile,
     collection: str,
-    progress_bar: "st.delta_generator.DeltaGenerator",
-    status_text: "st.delta_generator.DeltaGenerator",
+    progress_bar: st.delta_generator.DeltaGenerator,
+    status_text: st.delta_generator.DeltaGenerator,
 ) -> None:
     """Save the uploaded file to a temp location and run the pipeline."""
     from src.core.settings import load_settings
-    from src.core.trace import TraceContext, TraceCollector
+    from src.core.trace import TraceCollector, TraceContext
     from src.ingestion.pipeline import IngestionPipeline
 
     settings = load_settings()
@@ -35,7 +35,7 @@ def _run_ingestion(
         tmp.write(uploaded_file.getbuffer())
         tmp_path = tmp.name
 
-    _STAGE_LABELS = {
+    _STAGE_LABELS = {  # noqa: N806
         "integrity": "🔍 Checking file integrity…",
         "load": "📄 Loading document…",
         "split": "✂️ Chunking document…",

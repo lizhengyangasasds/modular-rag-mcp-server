@@ -13,7 +13,8 @@ Design Principles:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 
@@ -45,7 +46,7 @@ class CompositeEvaluator(BaseEvaluator):
 
     def __init__(
         self,
-        evaluators: Optional[Sequence[BaseEvaluator]] = None,
+        evaluators: Sequence[BaseEvaluator] | None = None,
         settings: Any = None,
         **kwargs: Any,
     ) -> None:
@@ -64,7 +65,7 @@ class CompositeEvaluator(BaseEvaluator):
         self.kwargs = kwargs
 
         if evaluators is not None:
-            self._evaluators: List[BaseEvaluator] = list(evaluators)
+            self._evaluators: list[BaseEvaluator] = list(evaluators)
         else:
             self._evaluators = self._build_from_settings(settings, **kwargs)
 
@@ -82,19 +83,19 @@ class CompositeEvaluator(BaseEvaluator):
         )
 
     @property
-    def evaluators(self) -> List[BaseEvaluator]:
+    def evaluators(self) -> list[BaseEvaluator]:
         """Return the list of composed evaluators."""
         return list(self._evaluators)
 
     def evaluate(
         self,
         query: str,
-        retrieved_chunks: List[Any],
-        generated_answer: Optional[str] = None,
-        ground_truth: Optional[Any] = None,
-        trace: Optional[Any] = None,
+        retrieved_chunks: list[Any],
+        generated_answer: str | None = None,
+        ground_truth: Any | None = None,
+        trace: Any | None = None,
         **kwargs: Any,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Run all sub-evaluators and merge their metrics.
 
         Args:
@@ -114,8 +115,8 @@ class CompositeEvaluator(BaseEvaluator):
         self.validate_query(query)
         self.validate_retrieved_chunks(retrieved_chunks)
 
-        merged: Dict[str, float] = {}
-        errors: List[str] = []
+        merged: dict[str, float] = {}
+        errors: list[str] = []
 
         for evaluator in self._evaluators:
             name = type(evaluator).__name__
@@ -163,7 +164,7 @@ class CompositeEvaluator(BaseEvaluator):
     def _build_from_settings(
         settings: Any,
         **kwargs: Any,
-    ) -> List[BaseEvaluator]:
+    ) -> list[BaseEvaluator]:
         """Build sub-evaluators from settings.evaluation.backends.
 
         Expected config::
@@ -199,7 +200,7 @@ class CompositeEvaluator(BaseEvaluator):
 
         from src.libs.evaluator.evaluator_factory import EvaluatorFactory
 
-        evaluators: List[BaseEvaluator] = []
+        evaluators: list[BaseEvaluator] = []
         for backend_name in backends:
             backend_name = str(backend_name).strip().lower()
             if backend_name in {"composite", "none", "disabled"}:

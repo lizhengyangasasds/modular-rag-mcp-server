@@ -17,8 +17,7 @@ Usage::
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any, List
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -73,7 +72,7 @@ def _mock_settings() -> MagicMock:
 
 def _collect_text(at: Any) -> str:
     """Collect all rendered text from an AppTest run for assertion."""
-    parts: List[str] = []
+    parts: list[str] = []
     for attr in ("markdown", "header", "subheader", "info", "error", "title", "text", "success", "warning"):
         for el in getattr(at, attr, []):
             parts.append(str(getattr(el, "value", "")))

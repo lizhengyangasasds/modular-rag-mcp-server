@@ -13,16 +13,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
-from typing import Dict, List, Optional, Tuple
 
-from src.core.settings import RedisSettings, RedisTTLSettings
-from src.libs.redis.client import BaseCache, get_redis_client
+from src.core.settings import RedisSettings
+from src.libs.redis.client import get_redis_client
 from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-_Stats = Dict[str, int]
+_Stats = dict[str, int]
 
 
 class EmbeddingCache:
@@ -39,8 +37,8 @@ class EmbeddingCache:
 
     def __init__(
         self,
-        settings: Optional[RedisSettings] = None,
-        ttl: Optional[int] = None,
+        settings: RedisSettings | None = None,
+        ttl: int | None = None,
     ) -> None:
         self._ttl = ttl or 604800
         self._client = get_redis_client(settings)
@@ -54,7 +52,7 @@ class EmbeddingCache:
     # Public API
     # ------------------------------------------------------------------
 
-    def get(self, text: str) -> Optional[List[float]]:
+    def get(self, text: str) -> list[float] | None:
         """Return cached embedding vector for *text*, or None on miss."""
         try:
             key = self._key_for_text(text)
@@ -69,7 +67,7 @@ class EmbeddingCache:
             logger.warning(f"EmbeddingCache.get failed: {e}")
             return None
 
-    def set(self, text: str, vector: List[float]) -> bool:
+    def set(self, text: str, vector: list[float]) -> bool:
         """Cache *vector* for *text*. Returns True on success."""
         try:
             key = self._key_for_text(text)
@@ -81,8 +79,8 @@ class EmbeddingCache:
             return False
 
     def get_many(
-        self, texts: List[str]
-    ) -> Tuple[List[Optional[List[float]]], List[Tuple[int, str]]]:
+        self, texts: list[str]
+    ) -> tuple[list[list[float] | None], list[tuple[int, str]]]:
         """Batch lookup: returns (cached_vectors, [(index, text), ...] for misses).
 
         The caller should embed the misses and then call :meth:`set_many`.
@@ -90,8 +88,8 @@ class EmbeddingCache:
         if not texts:
             return [], []
 
-        hits: List[Optional[List[float]]] = [None] * len(texts)
-        miss_indices: List[Tuple[int, str]] = []
+        hits: list[list[float] | None] = [None] * len(texts)
+        miss_indices: list[tuple[int, str]] = []
 
         # DummyRedis pipeline returns bools, not strings — handle directly
         from src.libs.redis.client import _DummyRedis
@@ -130,7 +128,7 @@ class EmbeddingCache:
 
         return hits, miss_indices
 
-    def set_many(self, items: List[Tuple[str, List[float]]]) -> int:
+    def set_many(self, items: list[tuple[str, list[float]]]) -> int:
         """Batch write: items is a list of (text, vector). Returns success count."""
         if not items:
             return 0

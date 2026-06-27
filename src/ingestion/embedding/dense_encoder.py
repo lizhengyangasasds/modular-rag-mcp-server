@@ -15,7 +15,7 @@ Design Principles:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, Any
+from typing import TYPE_CHECKING, Any
 
 from src.core.types import Chunk
 from src.libs.embedding.base_embedding import BaseEmbedding
@@ -56,14 +56,14 @@ class DenseEncoder:
         self,
         embedding: BaseEmbedding,
         batch_size: int = 100,
-        embedding_cache: Optional["EmbeddingCache"] = None,
+        embedding_cache: EmbeddingCache | None = None,
     ):
         """Initialize DenseEncoder.
-        
+
         Args:
             embedding: Embedding provider instance (from EmbeddingFactory)
             batch_size: Number of chunks to process per API call (default: 100)
-        
+
         Raises:
             ValueError: If batch_size <= 0
         """
@@ -75,37 +75,37 @@ class DenseEncoder:
         self._cache = embedding_cache
 
     @property
-    def embedding_cache(self) -> Optional["EmbeddingCache"]:
+    def embedding_cache(self) -> EmbeddingCache | None:
         return self._cache
 
-    def set_embedding_cache(self, cache: "EmbeddingCache") -> None:
+    def set_embedding_cache(self, cache: EmbeddingCache) -> None:
         self._cache = cache
-    
+
     def encode(
         self,
-        chunks: List[Chunk],
-        trace: Optional[Any] = None,
-    ) -> List[List[float]]:
+        chunks: list[Chunk],
+        trace: Any | None = None,
+    ) -> list[list[float]]:
         """Encode chunks into dense vectors.
-        
+
         This method:
         1. Extracts text from each chunk
         2. Batches texts according to batch_size
         3. Calls embedding.embed() for each batch
         4. Concatenates results maintaining chunk order
-        
+
         Args:
             chunks: List of Chunk objects to encode
             trace: Optional TraceContext for observability (reserved for Stage F)
-        
+
         Returns:
             List of dense vectors (one per chunk, in same order).
             Each vector is a list of floats with dimension matching the embedding model.
-        
+
         Raises:
             ValueError: If chunks list is empty
             RuntimeError: If embedding provider fails for all batches
-        
+
         Example:
             >>> chunks = [
             ...     Chunk(id="1", text="First chunk", metadata={}),
@@ -139,7 +139,7 @@ class DenseEncoder:
 
         # Step 2: Extract miss texts and encode them in batches
         miss_texts = [texts[idx] for idx, _ in miss_indices]
-        miss_vectors: List[List[float]] = []
+        miss_vectors: list[list[float]] = []
 
         for batch_start in range(0, len(miss_texts), self.batch_size):
             batch_end = min(batch_start + self.batch_size, len(miss_texts))
@@ -169,7 +169,7 @@ class DenseEncoder:
             self._cache.set_many(list(zip(miss_texts, miss_vectors)))
 
         # Step 4: Reassemble result in original order
-        result: List[List[float]] = []
+        result: list[list[float]] = []
         miss_map = {idx: vec for idx, vec in zip([i for i, _ in miss_indices], miss_vectors)}
         for i in range(len(texts)):
             if cached_vectors[i] is not None:
@@ -194,15 +194,15 @@ class DenseEncoder:
                     )
 
         return result
-    
+
     def get_batch_count(self, num_chunks: int) -> int:
         """Calculate number of batches needed for given chunk count.
-        
+
         Utility method for logging/progress tracking.
-        
+
         Args:
             num_chunks: Number of chunks to encode
-        
+
         Returns:
             Number of batches required
         """

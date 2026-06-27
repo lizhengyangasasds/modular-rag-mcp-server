@@ -10,9 +10,9 @@ Tests cover:
 """
 
 import pytest
-from src.ingestion.embedding.sparse_encoder import SparseEncoder
-from src.core.types import Chunk
 
+from src.core.types import Chunk
+from src.ingestion.embedding.sparse_encoder import SparseEncoder
 
 # ============================================================================
 # Constructor Tests
@@ -59,9 +59,9 @@ def test_encode_single_chunk():
     chunks = [
         Chunk(id="1", text="hello world", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     assert len(results) == 1
     assert results[0]["chunk_id"] == "1"
     assert results[0]["term_frequencies"]["hello"] == 1
@@ -77,9 +77,9 @@ def test_encode_multiple_chunks():
         Chunk(id="1", text="machine learning", metadata={"source_path": "test.txt"}),
         Chunk(id="2", text="deep learning networks", metadata={"source_path": "test.txt"}),
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     assert len(results) == 2
     assert results[0]["chunk_id"] == "1"
     assert results[1]["chunk_id"] == "2"
@@ -91,9 +91,9 @@ def test_encode_with_repeated_terms():
     chunks = [
         Chunk(id="1", text="hello world hello hello", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     assert results[0]["term_frequencies"]["hello"] == 3
     assert results[0]["term_frequencies"]["world"] == 1
     assert results[0]["doc_length"] == 4
@@ -110,9 +110,9 @@ def test_tokenize_lowercases_by_default():
     chunks = [
         Chunk(id="1", text="Hello World HELLO", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     assert "hello" in results[0]["term_frequencies"]
     assert "world" in results[0]["term_frequencies"]
     assert results[0]["term_frequencies"]["hello"] == 2
@@ -124,9 +124,9 @@ def test_tokenize_preserves_case_when_configured():
     chunks = [
         Chunk(id="1", text="Hello World", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     assert "Hello" in results[0]["term_frequencies"]
     assert "World" in results[0]["term_frequencies"]
     assert "hello" not in results[0]["term_frequencies"]
@@ -138,9 +138,9 @@ def test_tokenize_filters_by_min_term_length():
     chunks = [
         Chunk(id="1", text="I am learning Python AI", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     # Should filter out "I", "am", and "AI" (length < 3)
     assert "learning" in results[0]["term_frequencies"]
     assert "python" in results[0]["term_frequencies"]
@@ -153,9 +153,9 @@ def test_tokenize_handles_punctuation():
     chunks = [
         Chunk(id="1", text="Hello, world! How are you?", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     # Punctuation should be removed
     assert "hello" in results[0]["term_frequencies"]
     assert "world" in results[0]["term_frequencies"]
@@ -170,9 +170,9 @@ def test_tokenize_handles_hyphens_and_underscores():
     chunks = [
         Chunk(id="1", text="machine-learning deep_learning", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     assert "machine-learning" in results[0]["term_frequencies"]
     assert "deep_learning" in results[0]["term_frequencies"]
 
@@ -183,9 +183,9 @@ def test_tokenize_handles_numbers():
     chunks = [
         Chunk(id="1", text="Python 3.11 and GPT-4", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     # Numbers should be preserved as alphanumeric tokens
     assert "python" in results[0]["term_frequencies"]
     # "3.11" may be split into "3" and "11" depending on tokenizer
@@ -200,7 +200,7 @@ def test_tokenize_handles_numbers():
 def test_encode_rejects_empty_chunks_list():
     """Test that empty chunks list is rejected."""
     encoder = SparseEncoder()
-    
+
     with pytest.raises(ValueError, match="Cannot encode empty chunks list"):
         encoder.encode([])
 
@@ -211,7 +211,7 @@ def test_encode_rejects_chunk_with_empty_text():
     chunks = [
         Chunk(id="1", text="", metadata={"source_path": "test.txt"})
     ]
-    
+
     with pytest.raises(ValueError, match="empty or whitespace-only text"):
         encoder.encode(chunks)
 
@@ -222,7 +222,7 @@ def test_encode_rejects_chunk_with_whitespace_only_text():
     chunks = [
         Chunk(id="1", text="   \n\t  ", metadata={"source_path": "test.txt"})
     ]
-    
+
     with pytest.raises(ValueError, match="empty or whitespace-only text"):
         encoder.encode(chunks)
 
@@ -233,9 +233,9 @@ def test_encode_handles_special_characters():
     chunks = [
         Chunk(id="1", text="C++ and C# programming @2024", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     # Should extract alphanumeric terms
     assert "programming" in results[0]["term_frequencies"]
     assert "2024" in results[0]["term_frequencies"]
@@ -247,9 +247,9 @@ def test_encode_handles_unicode():
     chunks = [
         Chunk(id="1", text="café résumé naïve", metadata={"source_path": "test.txt"})
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     # Unicode characters should be handled
     assert results[0]["doc_length"] > 0
     assert results[0]["unique_terms"] > 0
@@ -265,10 +265,10 @@ def test_encode_is_deterministic():
     chunks = [
         Chunk(id="1", text="machine learning deep learning", metadata={"source_path": "test.txt"})
     ]
-    
+
     results1 = encoder.encode(chunks)
     results2 = encoder.encode(chunks)
-    
+
     assert results1 == results2
 
 
@@ -280,9 +280,9 @@ def test_encode_preserves_chunk_order():
         Chunk(id="2", text="second chunk", metadata={"source_path": "test.txt"}),
         Chunk(id="3", text="third chunk", metadata={"source_path": "test.txt"}),
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     assert len(results) == 3
     assert results[0]["chunk_id"] == "1"
     assert results[1]["chunk_id"] == "2"
@@ -299,10 +299,10 @@ def test_get_corpus_stats_single_document():
     chunks = [
         Chunk(id="1", text="hello world", metadata={"source_path": "test.txt"})
     ]
-    
+
     encoded = encoder.encode(chunks)
     stats = encoder.get_corpus_stats(encoded)
-    
+
     assert stats["num_docs"] == 1
     assert stats["avg_doc_length"] == 2.0
     assert stats["document_frequency"]["hello"] == 1
@@ -317,10 +317,10 @@ def test_get_corpus_stats_multiple_documents():
         Chunk(id="2", text="deep learning networks", metadata={"source_path": "test.txt"}),
         Chunk(id="3", text="machine learning algorithms", metadata={"source_path": "test.txt"}),
     ]
-    
+
     encoded = encoder.encode(chunks)
     stats = encoder.get_corpus_stats(encoded)
-    
+
     assert stats["num_docs"] == 3
     assert stats["avg_doc_length"] == (2 + 3 + 3) / 3
     # "learning" appears in all 3 docs
@@ -338,10 +338,10 @@ def test_get_corpus_stats_calculates_average_doc_length():
         Chunk(id="1", text="short", metadata={"source_path": "test.txt"}),
         Chunk(id="2", text="this is a longer document", metadata={"source_path": "test.txt"}),
     ]
-    
+
     encoded = encoder.encode(chunks)
     stats = encoder.get_corpus_stats(encoded)
-    
+
     # First doc: 1 term ("short"), Second doc: 4 terms ("this", "is", "longer", "document" - "a" filtered), avg = 2.5
     assert stats["avg_doc_length"] == 2.5
 
@@ -349,9 +349,9 @@ def test_get_corpus_stats_calculates_average_doc_length():
 def test_get_corpus_stats_handles_empty_list():
     """Test corpus stats with empty encoded chunks list."""
     encoder = SparseEncoder()
-    
+
     stats = encoder.get_corpus_stats([])
-    
+
     assert stats["num_docs"] == 0
     assert stats["avg_doc_length"] == 0.0
     assert stats["document_frequency"] == {}
@@ -364,7 +364,7 @@ def test_get_corpus_stats_handles_empty_list():
 def test_realistic_encoding_scenario():
     """Test realistic encoding scenario with varied content."""
     encoder = SparseEncoder()
-    
+
     chunks = [
         Chunk(
             id="doc1_chunk0",
@@ -382,9 +382,9 @@ def test_realistic_encoding_scenario():
             metadata={"source_path": "paper.pdf"}
         ),
     ]
-    
+
     results = encoder.encode(chunks)
-    
+
     # Validate structure
     assert len(results) == 3
     for i, result in enumerate(results):
@@ -396,7 +396,7 @@ def test_realistic_encoding_scenario():
         assert result["doc_length"] > 0
         assert result["unique_terms"] > 0
         assert len(result["term_frequencies"]) == result["unique_terms"]
-    
+
     # Get corpus stats
     corpus_stats = encoder.get_corpus_stats(results)
     assert corpus_stats["num_docs"] == 3

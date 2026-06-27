@@ -8,23 +8,22 @@ This module tests the complete reranking flow with actual Azure OpenAI calls:
 ⚠️ WARNING: These tests make real API calls and incur costs!
 """
 
-import pytest
-from typing import List
 
-from src.core.query_engine.reranker import CoreReranker, RerankConfig, RerankResult
+import pytest
+
+from src.core.query_engine.reranker import CoreReranker, RerankResult
 from src.core.settings import load_settings
 from src.core.types import RetrievalResult
 from src.libs.reranker.llm_reranker import LLMReranker
 from src.libs.reranker.reranker_factory import RerankerFactory
 
-
 # =============================================================================
 # Test Data
 # =============================================================================
 
-def create_test_results() -> List[RetrievalResult]:
+def create_test_results() -> list[RetrievalResult]:
     """Create test retrieval results for reranking.
-    
+
     These results are ordered by initial retrieval score, but the LLM reranker
     should reorder them based on semantic relevance to the query.
     """
@@ -71,40 +70,40 @@ def create_test_results() -> List[RetrievalResult]:
 
 class TestCoreRerankerAzureLLM:
     """Integration tests with real Azure OpenAI LLM calls."""
-    
+
     @pytest.fixture
     def settings(self):
         """Load real settings from config file."""
         return load_settings("config/settings.yaml")
-    
+
     @pytest.fixture
     def test_results(self):
         """Create test retrieval results."""
         return create_test_results()
-    
+
     def test_llm_reranker_creates_successfully(self, settings):
         """Test that LLM Reranker can be created from settings."""
         # Verify settings have rerank enabled with llm provider
         assert settings.rerank.enabled is True, "Rerank should be enabled in settings"
         assert settings.rerank.provider == "llm", "Provider should be 'llm'"
-        
+
         # Create reranker via factory
         reranker = RerankerFactory.create(settings)
-        
+
         assert isinstance(reranker, LLMReranker)
-        print(f"✅ LLM Reranker created successfully")
-    
+        print("✅ LLM Reranker created successfully")
+
     def test_core_reranker_with_llm_backend(self, settings):
         """Test CoreReranker initialization with LLM backend."""
         core_reranker = CoreReranker(settings)
-        
+
         assert core_reranker.is_enabled is True
         assert core_reranker.reranker_type == "llm"
-        print(f"✅ CoreReranker initialized with LLM backend")
-    
+        print("✅ CoreReranker initialized with LLM backend")
+
     def test_real_llm_reranking(self, settings, test_results):
         """Test actual LLM reranking with Azure OpenAI.
-        
+
         This test:
         1. Sends test results to the LLM for reranking
         2. Verifies that the most relevant chunk is ranked higher
@@ -113,31 +112,31 @@ class TestCoreRerankerAzureLLM:
         print("\n" + "=" * 60)
         print("REAL LLM RERANKING TEST")
         print("=" * 60)
-        
+
         core_reranker = CoreReranker(settings)
         query = "How do I configure Azure OpenAI settings?"
-        
+
         print(f"\n📝 Query: {query}")
-        print(f"\n📊 Input Results (by initial score):")
+        print("\n📊 Input Results (by initial score):")
         for i, r in enumerate(test_results):
             print(f"  {i+1}. [{r.score:.2f}] {r.chunk_id}: {r.text[:60]}...")
-        
+
         # Perform reranking
         result = core_reranker.rerank(query, test_results, top_k=4)
-        
+
         # Verify result structure
         assert isinstance(result, RerankResult)
         assert result.used_fallback is False, f"Should not use fallback: {result.fallback_reason}"
         assert result.reranker_type == "llm"
         assert len(result.results) > 0
-        
-        print(f"\n🎯 Reranked Results:")
+
+        print("\n🎯 Reranked Results:")
         for i, r in enumerate(result.results):
             orig_score = r.metadata.get("original_score", "N/A")
             rerank_score = r.metadata.get("rerank_score", r.score)
             print(f"  {i+1}. [rerank={rerank_score:.2f}, orig={orig_score}] {r.chunk_id}")
             print(f"      {r.text[:80]}...")
-        
+
         # Validate: Azure config chunk should be ranked high (top 2)
         # This is the most relevant chunk for the query
         top_2_ids = [r.chunk_id for r in result.results[:2]]
@@ -145,28 +144,28 @@ class TestCoreRerankerAzureLLM:
             f"'chunk_azure_config' should be in top 2 results. "
             f"Got: {top_2_ids}"
         )
-        
+
         # Validate: Database chunk should be ranked low (bottom 2)
         bottom_2_ids = [r.chunk_id for r in result.results[-2:]]
         assert "chunk_database" in bottom_2_ids, (
             f"'chunk_database' should be in bottom 2 results. "
             f"Got: {bottom_2_ids}"
         )
-        
-        print(f"\n✅ LLM reranking completed successfully!")
-        print(f"   - Most relevant chunk (Azure config) ranked in top 2")
-        print(f"   - Least relevant chunk (Database) ranked in bottom 2")
+
+        print("\n✅ LLM reranking completed successfully!")
+        print("   - Most relevant chunk (Azure config) ranked in top 2")
+        print("   - Least relevant chunk (Database) ranked in bottom 2")
         print("=" * 60)
-    
+
     def test_reranking_preserves_metadata(self, settings, test_results):
         """Test that reranking preserves original metadata."""
         core_reranker = CoreReranker(settings)
         query = "How do I configure Azure?"
-        
+
         result = core_reranker.rerank(query, test_results, top_k=4)
-        
+
         assert result.used_fallback is False
-        
+
         # Check that metadata is preserved
         for r in result.results:
             assert "source_path" in r.metadata
@@ -174,51 +173,51 @@ class TestCoreRerankerAzureLLM:
             assert "original_score" in r.metadata
             assert "rerank_score" in r.metadata
             assert r.metadata["reranked"] is True
-        
+
         print("✅ Metadata preserved correctly after reranking")
-    
+
     def test_reranking_with_top_k_limit(self, settings, test_results):
         """Test that top_k limits the number of results."""
         core_reranker = CoreReranker(settings)
         query = "Azure OpenAI configuration"
-        
+
         result = core_reranker.rerank(query, test_results, top_k=2)
-        
+
         assert len(result.results) == 2
         print(f"✅ Top-k limit (2) applied correctly, got {len(result.results)} results")
 
 
 class TestCoreRerankerFallbackIntegration:
     """Integration tests for fallback behavior."""
-    
+
     @pytest.fixture
     def settings(self):
         """Load real settings from config file."""
         return load_settings("config/settings.yaml")
-    
+
     @pytest.fixture
     def test_results(self):
         """Create test retrieval results."""
         return create_test_results()
-    
+
     def test_fallback_on_invalid_model(self, settings, test_results):
         """Test graceful fallback when LLM call fails.
-        
+
         We create an LLM reranker with an invalid model name to trigger failure.
         """
         print("\n" + "=" * 60)
         print("FALLBACK TEST WITH INVALID MODEL")
         print("=" * 60)
-        
+
         # Create a mock settings with invalid model to trigger LLM error
         from unittest.mock import MagicMock
-        
+
         mock_settings = MagicMock()
         mock_settings.rerank = MagicMock()
         mock_settings.rerank.enabled = True
         mock_settings.rerank.provider = "llm"
         mock_settings.rerank.top_k = 5
-        
+
         # Copy LLM settings but with invalid model
         mock_settings.llm = MagicMock()
         mock_settings.llm.provider = settings.llm.provider
@@ -229,47 +228,47 @@ class TestCoreRerankerFallbackIntegration:
         mock_settings.llm.api_key = settings.llm.api_key
         mock_settings.llm.temperature = 0.0
         mock_settings.llm.max_tokens = 1000
-        
+
         # Create core reranker - should create LLM reranker
         core_reranker = CoreReranker(mock_settings)
-        
+
         query = "Azure configuration"
-        
+
         print(f"📝 Query: {query}")
-        print(f"🔧 Using invalid model to trigger fallback...")
-        
+        print("🔧 Using invalid model to trigger fallback...")
+
         # Rerank should fallback gracefully
         result = core_reranker.rerank(query, test_results, top_k=4)
-        
+
         assert result.used_fallback is True, "Should use fallback for invalid model"
         assert result.fallback_reason is not None
         assert len(result.results) == 4
-        
+
         # Verify original order is preserved in fallback
         assert result.results[0].chunk_id == "chunk_python"  # Original first
-        
+
         # Verify fallback markers
         for r in result.results:
             assert r.metadata.get("reranked") is False
             assert r.metadata.get("rerank_fallback") is True
-        
-        print(f"✅ Fallback triggered successfully!")
+
+        print("✅ Fallback triggered successfully!")
         print(f"   Reason: {result.fallback_reason[:100]}...")
-        print(f"   Original order preserved")
+        print("   Original order preserved")
         print("=" * 60)
 
 
 class TestEndToEndReranking:
     """End-to-end test demonstrating full reranking flow."""
-    
+
     @pytest.fixture
     def settings(self):
         """Load real settings from config file."""
         return load_settings("config/settings.yaml")
-    
+
     def test_end_to_end_reranking_flow(self, settings):
         """Complete end-to-end test of the reranking flow.
-        
+
         This test simulates a real retrieval + reranking scenario:
         1. Start with retrieval results (simulated)
         2. Apply LLM reranking
@@ -278,7 +277,7 @@ class TestEndToEndReranking:
         print("\n" + "=" * 60)
         print("END-TO-END RERANKING FLOW")
         print("=" * 60)
-        
+
         # Simulated retrieval results (would come from HybridSearch in production)
         retrieval_results = [
             RetrievalResult(
@@ -306,32 +305,32 @@ class TestEndToEndReranking:
                 metadata={"source_path": "docs/chunking.pdf", "page": 3},
             ),
         ]
-        
+
         query = "What embedding dimensions does text-embedding-ada-002 use?"
-        
+
         print(f"\n📝 Query: {query}")
-        print(f"\n📊 Initial Retrieval Results:")
+        print("\n📊 Initial Retrieval Results:")
         for i, r in enumerate(retrieval_results):
             print(f"  {i+1}. [{r.score:.2f}] {r.chunk_id}: {r.text[:50]}...")
-        
+
         # Create reranker and perform reranking
         core_reranker = CoreReranker(settings)
         result = core_reranker.rerank(query, retrieval_results, top_k=3)
-        
-        print(f"\n🎯 After LLM Reranking:")
+
+        print("\n🎯 After LLM Reranking:")
         for i, r in enumerate(result.results):
             rerank_score = r.metadata.get("rerank_score", r.score)
             print(f"  {i+1}. [rerank={rerank_score:.1f}] {r.chunk_id}: {r.text[:50]}...")
-        
+
         # The embedding chunk (result_2) should be ranked #1 as it directly
         # answers the question about text-embedding-ada-002 dimensions
         assert result.results[0].chunk_id == "result_2", (
             f"Embedding chunk should be ranked first. "
             f"Got: {result.results[0].chunk_id}"
         )
-        
-        print(f"\n✅ End-to-end reranking successful!")
-        print(f"   - Most relevant chunk (embeddings) correctly ranked first")
+
+        print("\n✅ End-to-end reranking successful!")
+        print("   - Most relevant chunk (embeddings) correctly ranked first")
         print(f"   - Reranker type: {result.reranker_type}")
         print(f"   - Fallback used: {result.used_fallback}")
         print("=" * 60)

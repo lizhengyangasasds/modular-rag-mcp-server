@@ -7,17 +7,12 @@ We monkey-patch the heavy external components so the test runs without
 real Azure / ChromaDB / LLM dependencies.
 """
 
-import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
-
-import pytest
+from typing import Any
+from unittest.mock import MagicMock
 
 from src.core.trace.trace_context import TraceContext
-from src.core.types import Document, Chunk
-
+from src.core.types import Chunk, Document
 
 # ── Fake heavy components ────────────────────────────────────────────
 
@@ -29,7 +24,7 @@ def _fake_document(path: str = "test.pdf") -> Document:
     )
 
 
-def _fake_chunks(n: int = 3) -> List[Chunk]:
+def _fake_chunks(n: int = 3) -> list[Chunk]:
     return [
         Chunk(
             id=f"chunk_{i}",
@@ -42,8 +37,8 @@ def _fake_chunks(n: int = 3) -> List[Chunk]:
 
 @dataclass
 class FakeBatchResult:
-    dense_vectors: List[List[float]] = field(default_factory=lambda: [[0.1, 0.2]] * 3)
-    sparse_stats: List[Dict[str, Any]] = field(default_factory=lambda: [{"doc_id": f"chunk_{i}"} for i in range(3)])
+    dense_vectors: list[list[float]] = field(default_factory=lambda: [[0.1, 0.2]] * 3)
+    sparse_stats: list[dict[str, Any]] = field(default_factory=lambda: [{"doc_id": f"chunk_{i}"} for i in range(3)])
 
 
 class FakePipeline:
@@ -84,7 +79,7 @@ class FakePipeline:
         self.image_storage = MagicMock()
 
 
-def _run_fake_pipeline(trace: Optional[TraceContext] = None):
+def _run_fake_pipeline(trace: TraceContext | None = None):
     """Import the real run() logic but wire it to FakePipeline."""
     from src.ingestion.pipeline import IngestionPipeline
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +29,18 @@ class DocumentInfo:
 
     source_path: str
     source_hash: str
-    collection: Optional[str] = None
+    collection: str | None = None
     chunk_count: int = 0
     image_count: int = 0
-    processed_at: Optional[str] = None
+    processed_at: str | None = None
 
 
 @dataclass
 class DocumentDetail(DocumentInfo):
     """Extended document info including chunk IDs and image IDs."""
 
-    chunk_ids: List[str] = field(default_factory=list)
-    image_ids: List[str] = field(default_factory=list)
+    chunk_ids: list[str] = field(default_factory=list)
+    image_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -52,14 +52,14 @@ class DeleteResult:
     bm25_removed: bool = False
     images_deleted: int = 0
     integrity_removed: bool = False
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
 class CollectionStats:
     """Aggregate statistics for a collection."""
 
-    collection: Optional[str] = None
+    collection: str | None = None
     document_count: int = 0
     chunk_count: int = 0
     image_count: int = 0
@@ -96,8 +96,8 @@ class DocumentManager:
     # ------------------------------------------------------------------
 
     def list_documents(
-        self, collection: Optional[str] = None
-    ) -> List[DocumentInfo]:
+        self, collection: str | None = None
+    ) -> list[DocumentInfo]:
         """Return a list of ingested documents.
 
         Combines information from the integrity checker (source_path,
@@ -111,7 +111,7 @@ class DocumentManager:
         """
         records = self.integrity.list_processed(collection)
 
-        docs: List[DocumentInfo] = []
+        docs: list[DocumentInfo] = []
         for rec in records:
             source_hash = rec["file_hash"]
             source_path = rec["file_path"]
@@ -140,7 +140,7 @@ class DocumentManager:
     # get_document_detail
     # ------------------------------------------------------------------
 
-    def get_document_detail(self, doc_id: str) -> Optional[DocumentDetail]:
+    def get_document_detail(self, doc_id: str) -> DocumentDetail | None:
         """Get detailed information about a single document.
 
         *doc_id* is matched against the ``source_hash`` stored in the
@@ -190,7 +190,7 @@ class DocumentManager:
         self,
         source_path: str,
         collection: str = "default",
-        source_hash: Optional[str] = None,
+        source_hash: str | None = None,
     ) -> DeleteResult:
         """Delete a document from all storage backends.
 
@@ -272,7 +272,7 @@ class DocumentManager:
     # ------------------------------------------------------------------
 
     def get_collection_stats(
-        self, collection: Optional[str] = None
+        self, collection: str | None = None
     ) -> CollectionStats:
         """Return aggregate statistics for a collection.
 
@@ -311,7 +311,7 @@ class DocumentManager:
             )
             return 0
 
-    def _get_chunk_ids(self, source_hash: str) -> List[str]:
+    def _get_chunk_ids(self, source_hash: str) -> list[str]:
         """Return chunk IDs from Chroma matching *source_hash*."""
         try:
             results = self.chroma.collection.get(
@@ -334,7 +334,7 @@ class DocumentManager:
             )
             return 0
 
-    def _get_image_ids(self, source_hash: str) -> List[str]:
+    def _get_image_ids(self, source_hash: str) -> list[str]:
         """Return image IDs belonging to *source_hash*."""
         try:
             imgs = self.images.list_images(doc_hash=source_hash)
@@ -345,7 +345,7 @@ class DocumentManager:
             )
             return []
 
-    def _hash_from_path(self, source_path: str) -> Optional[str]:
+    def _hash_from_path(self, source_path: str) -> str | None:
         """Try to find a source_hash from integrity records by path."""
         try:
             for rec in self.integrity.list_processed():

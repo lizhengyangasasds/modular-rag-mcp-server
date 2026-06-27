@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
 class Message:
     """Represents a single message in a chat conversation.
-    
+
     Attributes:
         role: The role of the message sender ('system', 'user', or 'assistant').
         content: The text content of the message.
@@ -27,7 +27,7 @@ class Message:
 @dataclass
 class ChatResponse:
     """Response from an LLM chat completion.
-    
+
     Attributes:
         content: The generated text response.
         model: The model identifier that generated the response.
@@ -36,58 +36,58 @@ class ChatResponse:
     """
     content: str
     model: str
-    usage: Optional[Dict[str, int]] = None
-    raw_response: Optional[Any] = None
+    usage: dict[str, int] | None = None
+    raw_response: Any | None = None
 
 
 class BaseLLM(ABC):
     """Abstract base class for LLM providers.
-    
+
     All LLM implementations must inherit from this class and implement
     the chat() method. This ensures consistent interface across different
     providers (OpenAI, Azure, DeepSeek, Ollama, etc.).
-    
+
     Design Principles Applied:
     - Pluggable: Subclasses can be swapped without changing upstream code.
     - Observable: Accepts optional TraceContext for observability integration.
     - Config-Driven: Instances are created via factory based on settings.
     """
-    
+
     @abstractmethod
     def chat(
         self,
-        messages: List[Message],
-        trace: Optional[Any] = None,
+        messages: list[Message],
+        trace: Any | None = None,
         **kwargs: Any,
     ) -> ChatResponse:
         """Generate a chat completion response.
-        
+
         Args:
             messages: List of conversation messages (role + content).
             trace: Optional TraceContext for observability (reserved for Stage F).
             **kwargs: Provider-specific parameters (temperature, max_tokens, etc.).
-        
+
         Returns:
             ChatResponse containing the generated text and metadata.
-        
+
         Raises:
             ValueError: If messages list is empty or malformed.
             RuntimeError: If the LLM provider call fails.
         """
         pass
-    
-    def validate_messages(self, messages: List[Message]) -> None:
+
+    def validate_messages(self, messages: list[Message]) -> None:
         """Validate message list structure.
-        
+
         Args:
             messages: List of messages to validate.
-        
+
         Raises:
             ValueError: If messages list is empty or contains invalid roles.
         """
         if not messages:
             raise ValueError("Messages list cannot be empty")
-        
+
         valid_roles = {"system", "user", "assistant"}
         for i, msg in enumerate(messages):
             if not isinstance(msg, Message):

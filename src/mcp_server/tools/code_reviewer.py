@@ -13,14 +13,15 @@ Usage via MCP:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
-from src.libs.llm import LLMFactory, BaseLLM
+
+from src.libs.llm import BaseLLM, LLMFactory
 
 if TYPE_CHECKING:
-    from src.mcp_server.protocol_handler import ProtocolHandler
     from src.core.settings import Settings
+    from src.mcp_server.protocol_handler import ProtocolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ Parameters:
 - language: Programming language (python, javascript, go, rust, etc.)
 """
 
-TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+TOOL_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "code": {
@@ -56,7 +57,7 @@ TOOL_INPUT_SCHEMA: Dict[str, Any] = {
 class CodeReviewerTool:
     """MCP Tool for code review."""
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings
 
     @property

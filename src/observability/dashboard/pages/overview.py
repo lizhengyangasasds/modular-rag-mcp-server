@@ -7,23 +7,23 @@ Displays:
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import streamlit as st
 
 from src.observability.dashboard.services.config_service import ConfigService
 
 
-def _safe_collection_stats() -> Dict[str, Any]:
+def _safe_collection_stats() -> dict[str, Any]:
     """Attempt to load collection statistics from ChromaDB.
 
     Returns empty dict on failure so the page still renders.
     """
     try:
-        from src.core.settings import load_settings, resolve_path
         import chromadb
         from chromadb.config import Settings as ChromaSettings
+
+        from src.core.settings import load_settings, resolve_path
 
         settings = load_settings()
         persist_dir = str(
@@ -33,7 +33,7 @@ def _safe_collection_stats() -> Dict[str, Any]:
             path=persist_dir,
             settings=ChromaSettings(anonymized_telemetry=False, allow_reset=True),
         )
-        stats: Dict[str, Any] = {}
+        stats: dict[str, Any] = {}
         for col in client.list_collections():
             name = col.name if hasattr(col, "name") else str(col)
             collection = client.get_collection(name)

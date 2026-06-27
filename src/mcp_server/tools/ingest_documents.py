@@ -14,16 +14,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
 
 if TYPE_CHECKING:
-    from src.mcp_server.protocol_handler import ProtocolHandler
     from src.core.settings import Settings
+    from src.mcp_server.protocol_handler import ProtocolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ Parameters:
 Supported formats: PDF, Markdown, Text files
 """
 
-TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+TOOL_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "collection": {
@@ -75,7 +74,7 @@ class IngestResult:
         ingested: int = 0,
         skipped: int = 0,
         failed: int = 0,
-        errors: Optional[List[str]] = None
+        errors: list[str] | None = None
     ):
         self.total_files = total_files
         self.ingested = ingested
@@ -83,7 +82,7 @@ class IngestResult:
         self.failed = failed
         self.errors = errors or []
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "total_files": self.total_files,
             "ingested": self.ingested,
@@ -98,8 +97,8 @@ class IngestDocumentsTool:
 
     def __init__(
         self,
-        settings: Optional[Settings] = None,
-        config: Optional[IngestDocumentsConfig] = None,
+        settings: Settings | None = None,
+        config: IngestDocumentsConfig | None = None,
     ) -> None:
         self._settings = settings
         self._config = config
@@ -117,7 +116,7 @@ class IngestDocumentsTool:
             self._config = IngestDocumentsConfig()
         return self._config
 
-    def _scan_documents(self, folder: Path) -> List[Path]:
+    def _scan_documents(self, folder: Path) -> list[Path]:
         """Scan folder for supported documents."""
         if not folder.exists():
             return []

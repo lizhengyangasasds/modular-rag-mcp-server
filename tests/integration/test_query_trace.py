@@ -4,18 +4,15 @@ Verifies that HybridSearch.search() and CoreReranker.rerank() populate
 TraceContext with the expected stages and timing data.
 """
 
-import pytest
-from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
-from src.core.types import ProcessedQuery, RetrievalResult
-from src.core.trace.trace_context import TraceContext
 from src.core.query_engine.hybrid_search import (
     HybridSearch,
     HybridSearchConfig,
 )
 from src.core.query_engine.reranker import CoreReranker, RerankConfig
-
+from src.core.trace.trace_context import TraceContext
+from src.core.types import ProcessedQuery, RetrievalResult
 
 # ── Fake components ──────────────────────────────────────────────────
 
@@ -23,7 +20,7 @@ from src.core.query_engine.reranker import CoreReranker, RerankConfig
 class FakeDenseRetriever:
     provider_name = "openai"
 
-    def retrieve(self, *, query: str, top_k: int, filters=None, trace=None) -> List[RetrievalResult]:
+    def retrieve(self, *, query: str, top_k: int, filters=None, trace=None) -> list[RetrievalResult]:
         return [
             RetrievalResult(chunk_id="d1", score=0.9, text="dense result 1", metadata={}),
             RetrievalResult(chunk_id="d2", score=0.8, text="dense result 2", metadata={}),
@@ -31,7 +28,7 @@ class FakeDenseRetriever:
 
 
 class FakeSparseRetriever:
-    def retrieve(self, *, keywords: List[str], top_k: int, collection=None, trace=None) -> List[RetrievalResult]:
+    def retrieve(self, *, keywords: list[str], top_k: int, collection=None, trace=None) -> list[RetrievalResult]:
         return [
             RetrievalResult(chunk_id="s1", score=0.85, text="sparse result 1", metadata={}),
             RetrievalResult(chunk_id="s2", score=0.75, text="sparse result 2", metadata={}),
@@ -48,7 +45,7 @@ class FakeQueryProcessor:
 
 
 class FakeFusion:
-    def fuse(self, *, ranking_lists, top_k, trace=None) -> List[RetrievalResult]:
+    def fuse(self, *, ranking_lists, top_k, trace=None) -> list[RetrievalResult]:
         # Simple dedup + merge
         seen, merged = set(), []
         for rl in ranking_lists:
@@ -168,7 +165,7 @@ class TestCoreRerankerTrace:
             config=RerankConfig(enabled=True, top_k=5),
         )
 
-    def _sample_results(self) -> List[RetrievalResult]:
+    def _sample_results(self) -> list[RetrievalResult]:
         return [
             RetrievalResult(chunk_id=f"c{i}", score=0.9 - i * 0.1, text=f"text {i}", metadata={})
             for i in range(4)

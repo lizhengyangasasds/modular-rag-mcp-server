@@ -16,13 +16,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
 
 if TYPE_CHECKING:
     from src.mcp_server.protocol_handler import ProtocolHandler
-    from src.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ Parameters:
 - format: Package format (wheel, tarball, docker)
 """
 
-TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+TOOL_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "format": {
@@ -69,7 +68,6 @@ class PackageTool:
 
         # Step 1: Clean
         try:
-            dirs_to_clean = ["build", "dist", "__pycache__"]
             for pattern in ["**/*.pyc", "**/__pycache__", "**/*.egg-info", "**/.pytest_cache"]:
                 for p in Path(".").rglob(pattern):
                     try:

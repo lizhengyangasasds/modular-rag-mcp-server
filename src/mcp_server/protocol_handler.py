@@ -8,8 +8,9 @@ This module provides the ProtocolHandler class that encapsulates:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from mcp import types
 from mcp.server.lowlevel import Server
@@ -34,7 +35,7 @@ class ToolDefinition:
 
     name: str
     description: str
-    input_schema: Dict[str, Any]
+    input_schema: dict[str, Any]
     handler: Callable[..., Any]
 
 
@@ -55,7 +56,7 @@ class ProtocolHandler:
 
     server_name: str
     server_version: str
-    tools: Dict[str, ToolDefinition] = field(default_factory=dict)
+    tools: dict[str, ToolDefinition] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Initialize logger after dataclass initialization."""
@@ -65,7 +66,7 @@ class ProtocolHandler:
         self,
         name: str,
         description: str,
-        input_schema: Dict[str, Any],
+        input_schema: dict[str, Any],
         handler: Callable[..., Any],
     ) -> None:
         """Register a tool with the protocol handler.
@@ -90,7 +91,7 @@ class ProtocolHandler:
         )
         self._logger.info("Registered tool: %s", name)
 
-    def get_tool_schemas(self) -> List[types.Tool]:
+    def get_tool_schemas(self) -> list[types.Tool]:
         """Get list of tool schemas for tools/list response.
 
         Returns:
@@ -106,7 +107,7 @@ class ProtocolHandler:
         ]
 
     async def execute_tool(
-        self, name: str, arguments: Dict[str, Any]
+        self, name: str, arguments: dict[str, Any]
     ) -> types.CallToolResult:
         """Execute a registered tool by name.
 
@@ -165,7 +166,7 @@ class ProtocolHandler:
                 ],
                 isError=True,
             )
-        except Exception as e:
+        except Exception:
             # Internal error - don't leak stack trace
             self._logger.exception("Internal error executing tool %s", name)
             return types.CallToolResult(
@@ -178,7 +179,7 @@ class ProtocolHandler:
                 isError=True,
             )
 
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> dict[str, Any]:
         """Get server capabilities for initialize response.
 
         Returns:
@@ -196,57 +197,57 @@ def _register_default_tools(protocol_handler: ProtocolHandler) -> None:
         protocol_handler: ProtocolHandler instance to register tools with.
     """
     # === RAG Core Tools ===
-    
+
     # Import and register query_knowledge_hub tool
     from src.mcp_server.tools.query_knowledge_hub import register_tool as register_query_tool
     register_query_tool(protocol_handler)
-    
+
     # Import and register list_collections tool
     from src.mcp_server.tools.list_collections import register_tool as register_list_tool
     register_list_tool(protocol_handler)
-    
+
     # Import and register get_document_summary tool
     from src.mcp_server.tools.get_document_summary import register_tool as register_summary_tool
     register_summary_tool(protocol_handler)
-    
+
     # Import and register ingest_documents tool
     from src.mcp_server.tools.ingest_documents import register_tool as register_ingest_tool
     register_ingest_tool(protocol_handler)
-    
+
     # === Developer Tools ===
-    
+
     # Import and register auto_coder tool
     from src.mcp_server.tools.auto_coder import register_tool as register_coder_tool
     register_coder_tool(protocol_handler)
-    
+
     # Import and register qa_tester tool
     from src.mcp_server.tools.qa_tester import register_tool as register_qa_tool
     register_qa_tool(protocol_handler)
-    
+
     # Import and register code_reviewer tool
     from src.mcp_server.tools.code_reviewer import register_tool as register_reviewer_tool
     register_reviewer_tool(protocol_handler)
-    
+
     # === Project Management Tools ===
-    
+
     # Import and register setup tool
     from src.mcp_server.tools.setup import register_tool as register_setup_tool
     register_setup_tool(protocol_handler)
-    
+
     # Import and register package tool
     from src.mcp_server.tools.package import register_tool as register_package_tool
     register_package_tool(protocol_handler)
-    
+
     # Import and register deploy tool
     from src.mcp_server.tools.deploy import register_tool as register_deploy_tool
     register_deploy_tool(protocol_handler)
-    
+
     # === Document Tools ===
-    
+
     # Import and register resume_writer tool
     from src.mcp_server.tools.resume_writer import register_tool as register_resume_tool
     register_resume_tool(protocol_handler)
-    
+
     # Import and register doc_generator tool
     from src.mcp_server.tools.doc_generator import register_tool as register_doc_tool
     register_doc_tool(protocol_handler)
@@ -255,7 +256,7 @@ def _register_default_tools(protocol_handler: ProtocolHandler) -> None:
 def create_mcp_server(
     server_name: str,
     server_version: str,
-    protocol_handler: Optional[ProtocolHandler] = None,
+    protocol_handler: ProtocolHandler | None = None,
     register_tools: bool = True,
 ) -> Server:
     """Create and configure an MCP server with the protocol handler.
@@ -288,14 +289,14 @@ def create_mcp_server(
 
     # Register tools/list handler
     @server.list_tools()
-    async def handle_list_tools() -> List[types.Tool]:
+    async def handle_list_tools() -> list[types.Tool]:
         """Handle tools/list request."""
         return protocol_handler.get_tool_schemas()
 
     # Register tools/call handler
     @server.call_tool()
     async def handle_call_tool(
-        name: str, arguments: Dict[str, Any]
+        name: str, arguments: dict[str, Any]
     ) -> types.CallToolResult:
         """Handle tools/call request."""
         return await protocol_handler.execute_tool(name, arguments)

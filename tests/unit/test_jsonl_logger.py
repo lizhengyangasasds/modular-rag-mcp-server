@@ -10,10 +10,7 @@ import json
 import logging
 from pathlib import Path
 
-import pytest
-
 from src.observability.logger import JSONFormatter, get_trace_logger, write_trace
-
 
 # ── JSONFormatter ────────────────────────────────────────────────────
 

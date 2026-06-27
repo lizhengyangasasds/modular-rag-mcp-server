@@ -8,7 +8,7 @@ and API-based endpoints.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.libs.reranker.base_reranker import BaseReranker
 
@@ -21,12 +21,12 @@ class CrossEncoderRerankError(RuntimeError):
 
 class CrossEncoderReranker(BaseReranker):
     """Cross-Encoder based reranker for scoring query-passage pairs.
-    
+
     This implementation uses Cross-Encoder models (e.g., ms-marco-MiniLM)
     that directly encode and score (query, passage) pairs, providing more
     accurate relevance scores than bi-encoder approaches at the cost of
     higher computational requirements.
-    
+
     Design Principles Applied:
     - Pluggable: Can be swapped with other reranker implementations via factory.
     - Config-Driven: Model name and parameters come from settings.yaml.
@@ -34,16 +34,16 @@ class CrossEncoderReranker(BaseReranker):
     - Fallback-Aware: Provides timeout/failure signals for upstream fallback.
     - Deterministic Testing: Supports mock scorer injection for testing.
     """
-    
+
     def __init__(
         self,
         settings: Any,
-        model: Optional[Any] = None,
+        model: Any | None = None,
         timeout: float = 10.0,
         **kwargs: Any
     ) -> None:
         """Initialize the Cross-Encoder Reranker.
-        
+
         Args:
             settings: Application settings containing rerank configuration.
             model: Optional pre-initialized CrossEncoder model. If None, creates
@@ -55,7 +55,7 @@ class CrossEncoderReranker(BaseReranker):
         self.settings = settings
         self.timeout = timeout
         self.kwargs = kwargs
-        
+
         # Initialize or inject model
         if model is not None:
             self.model = model
@@ -67,16 +67,16 @@ class CrossEncoderReranker(BaseReranker):
                 raise CrossEncoderRerankError(
                     f"Failed to initialize Cross-Encoder model: {e}"
                 ) from e
-    
+
     def _get_model_name_from_settings(self, settings: Any) -> str:
         """Extract model name from settings.
-        
+
         Args:
             settings: Application settings.
-        
+
         Returns:
             Model name string.
-        
+
         Raises:
             AttributeError: If rerank.model is not configured.
         """
@@ -90,16 +90,16 @@ class CrossEncoderReranker(BaseReranker):
                 "Missing configuration: settings.rerank.model. "
                 "Please specify 'rerank.model' in settings.yaml"
             ) from e
-    
+
     def _load_cross_encoder_model(self, model_name: str) -> Any:
         """Load the Cross-Encoder model.
-        
+
         Args:
             model_name: Name or path of the Cross-Encoder model.
-        
+
         Returns:
             Initialized CrossEncoder instance.
-        
+
         Raises:
             ImportError: If sentence-transformers is not installed.
             RuntimeError: If model loading fails.
@@ -111,7 +111,7 @@ class CrossEncoderReranker(BaseReranker):
                 "sentence-transformers is required for Cross-Encoder reranking. "
                 "Install it with: pip install sentence-transformers"
             ) from e
-        
+
         try:
             logger.info(f"Loading Cross-Encoder model: {model_name}")
             model = CrossEncoder(model_name)
@@ -121,27 +121,27 @@ class CrossEncoderReranker(BaseReranker):
             raise RuntimeError(
                 f"Failed to load Cross-Encoder model '{model_name}': {e}"
             ) from e
-    
+
     def rerank(
         self,
         query: str,
-        candidates: List[Dict[str, Any]],
-        trace: Optional[Any] = None,
+        candidates: list[dict[str, Any]],
+        trace: Any | None = None,
         **kwargs: Any,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Rerank candidates using Cross-Encoder scoring.
-        
+
         Args:
             query: The user query string.
             candidates: List of candidate records to rerank. Each must contain
                 either 'text' or 'content' field for scoring.
             trace: Optional TraceContext for observability (Stage F integration).
             **kwargs: Additional parameters (top_k to limit output, etc.).
-        
+
         Returns:
             Reranked list of candidates ordered by relevance score (descending).
             Each candidate includes a 'rerank_score' field with the model's score.
-        
+
         Raises:
             ValueError: If query or candidates are invalid.
             CrossEncoderRerankError: If scoring fails or times out.
@@ -149,45 +149,45 @@ class CrossEncoderReranker(BaseReranker):
         # Validate inputs
         self.validate_query(query)
         self.validate_candidates(candidates)
-        
+
         # Extract top_k parameter
         top_k = kwargs.get("top_k", len(candidates))
         if not isinstance(top_k, int) or top_k < 1:
             raise ValueError(f"top_k must be a positive integer, got {top_k}")
-        
+
         try:
             # Prepare (query, passage) pairs for scoring
             pairs = self._prepare_pairs(query, candidates)
-            
+
             # Score pairs using the model
             scores = self._score_pairs(pairs, trace=trace)
-            
+
             # Attach scores to candidates and sort
             reranked = self._attach_scores_and_sort(candidates, scores, top_k)
-            
+
             if trace:
                 self._log_trace(trace, query, len(candidates), len(reranked))
-            
+
             return reranked
-            
+
         except Exception as e:
             logger.error(f"Cross-Encoder reranking failed: {e}", exc_info=True)
             # Signal failure for upstream fallback logic
             raise CrossEncoderRerankError(
                 f"Cross-Encoder reranking failed: {e}"
             ) from e
-    
+
     def _prepare_pairs(
         self,
         query: str,
-        candidates: List[Dict[str, Any]]
-    ) -> List[tuple[str, str]]:
+        candidates: list[dict[str, Any]]
+    ) -> list[tuple[str, str]]:
         """Prepare (query, passage) pairs for scoring.
-        
+
         Args:
             query: The user query.
             candidates: List of candidate records.
-        
+
         Returns:
             List of (query, passage_text) tuples.
         """
@@ -199,52 +199,52 @@ class CrossEncoderReranker(BaseReranker):
                 text = str(text)
             pairs.append((query, text))
         return pairs
-    
+
     def _score_pairs(
         self,
-        pairs: List[tuple[str, str]],
-        trace: Optional[Any] = None
-    ) -> List[float]:
+        pairs: list[tuple[str, str]],
+        trace: Any | None = None
+    ) -> list[float]:
         """Score (query, passage) pairs using the Cross-Encoder model.
-        
+
         Args:
             pairs: List of (query, passage) tuples.
             trace: Optional TraceContext for observability.
-        
+
         Returns:
             List of relevance scores (one per pair).
-        
+
         Raises:
             CrossEncoderRerankError: If scoring fails or times out.
         """
         try:
             # Use model.predict() to score all pairs in batch
             scores = self.model.predict(pairs)
-            
+
             # Convert numpy array to list if needed
             if hasattr(scores, 'tolist'):
                 scores = scores.tolist()
-            
+
             return scores
-            
+
         except Exception as e:
             raise CrossEncoderRerankError(
                 f"Failed to score pairs with Cross-Encoder: {e}"
             ) from e
-    
+
     def _attach_scores_and_sort(
         self,
-        candidates: List[Dict[str, Any]],
-        scores: List[float],
+        candidates: list[dict[str, Any]],
+        scores: list[float],
         top_k: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Attach scores to candidates and sort by relevance.
-        
+
         Args:
             candidates: Original candidate list.
             scores: Relevance scores from the model.
             top_k: Number of top candidates to return.
-        
+
         Returns:
             Sorted list of top_k candidates with 'rerank_score' field added.
         """
@@ -255,16 +255,16 @@ class CrossEncoderReranker(BaseReranker):
             candidate_copy = candidate.copy()
             candidate_copy["rerank_score"] = float(score)
             scored_candidates.append(candidate_copy)
-        
+
         # Sort by score (descending) and take top_k
         sorted_candidates = sorted(
             scored_candidates,
             key=lambda x: x["rerank_score"],
             reverse=True
         )
-        
+
         return sorted_candidates[:top_k]
-    
+
     def _log_trace(
         self,
         trace: Any,
@@ -273,7 +273,7 @@ class CrossEncoderReranker(BaseReranker):
         output_count: int
     ) -> None:
         """Log reranking operation to trace context.
-        
+
         Args:
             trace: TraceContext instance.
             query: The query string.

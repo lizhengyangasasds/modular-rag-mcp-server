@@ -14,14 +14,15 @@ Usage via MCP:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
-from src.libs.llm import LLMFactory, BaseLLM
+
+from src.libs.llm import BaseLLM, LLMFactory
 
 if TYPE_CHECKING:
-    from src.mcp_server.protocol_handler import ProtocolHandler
     from src.core.settings import Settings
+    from src.mcp_server.protocol_handler import ProtocolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ Parameters:
 - context: Optional existing code or additional context
 """
 
-TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+TOOL_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "task": {
@@ -62,7 +63,7 @@ TOOL_INPUT_SCHEMA: Dict[str, Any] = {
 class AutoCoderTool:
     """MCP Tool for automatic code generation."""
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings
 
     @property
@@ -80,7 +81,7 @@ class AutoCoderTool:
         self,
         task: str,
         language: str = "python",
-        context: Optional[str] = None,
+        context: str | None = None,
     ) -> str:
         """Generate code based on task description.
 
@@ -131,7 +132,7 @@ class AutoCoderTool:
         self,
         task: str,
         language: str = "python",
-        context: Optional[str] = None,
+        context: str | None = None,
     ) -> types.CallToolResult:
         """Execute the auto_coder tool."""
         import asyncio
@@ -170,7 +171,7 @@ def register_tool(protocol_handler: ProtocolHandler) -> None:
     async def handler(
         task: str,
         language: str = "python",
-        context: Optional[str] = None,
+        context: str | None = None,
     ) -> types.CallToolResult:
         return await tool.execute(task=task, language=language, context=context)
 

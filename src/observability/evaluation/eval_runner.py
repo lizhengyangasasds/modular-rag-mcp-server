@@ -15,9 +15,9 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 
@@ -36,12 +36,12 @@ class GoldenTestCase:
     """
 
     query: str
-    expected_chunk_ids: List[str] = field(default_factory=list)
-    expected_sources: List[str] = field(default_factory=list)
-    reference_answer: Optional[str] = None
+    expected_chunk_ids: list[str] = field(default_factory=list)
+    expected_sources: list[str] = field(default_factory=list)
+    reference_answer: str | None = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> GoldenTestCase:
+    def from_dict(cls, data: dict[str, Any]) -> GoldenTestCase:
         return cls(
             query=data["query"],
             expected_chunk_ids=data.get("expected_chunk_ids", []),
@@ -63,9 +63,9 @@ class QueryResult:
     """
 
     query: str
-    retrieved_chunk_ids: List[str] = field(default_factory=list)
-    generated_answer: Optional[str] = None
-    metrics: Dict[str, float] = field(default_factory=dict)
+    retrieved_chunk_ids: list[str] = field(default_factory=list)
+    generated_answer: str | None = None
+    metrics: dict[str, float] = field(default_factory=dict)
     elapsed_ms: float = 0.0
 
 
@@ -81,13 +81,13 @@ class EvalReport:
         test_set_path: Path to the golden test set file.
     """
 
-    query_results: List[QueryResult] = field(default_factory=list)
-    aggregate_metrics: Dict[str, float] = field(default_factory=dict)
+    query_results: list[QueryResult] = field(default_factory=list)
+    aggregate_metrics: dict[str, float] = field(default_factory=dict)
     total_elapsed_ms: float = 0.0
     evaluator_name: str = ""
     test_set_path: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialise report to dictionary."""
         return {
             "evaluator_name": self.evaluator_name,
@@ -110,7 +110,7 @@ class EvalReport:
         }
 
 
-def load_test_set(path: Union[str, Path]) -> List[GoldenTestCase]:
+def load_test_set(path: str | Path) -> list[GoldenTestCase]:
     """Load golden test set from a JSON file.
 
     Args:
@@ -163,9 +163,9 @@ class EvalRunner:
         self,
         settings: Any = None,
         hybrid_search: Any = None,
-        evaluator: Optional[BaseEvaluator] = None,
+        evaluator: BaseEvaluator | None = None,
         answer_generator: Any = None,
-        answer_overrides: Optional[Dict[int, str]] = None,
+        answer_overrides: dict[int, str] | None = None,
         reranker: Any = None,
     ) -> None:
         """Initialize EvalRunner.
@@ -191,9 +191,9 @@ class EvalRunner:
 
     def run(
         self,
-        test_set_path: Union[str, Path],
+        test_set_path: str | Path,
         top_k: int = 10,
-        collection: Optional[str] = None,
+        collection: str | None = None,
     ) -> EvalReport:
         """Run evaluation on the golden test set.
 
@@ -254,8 +254,8 @@ class EvalRunner:
         self,
         test_case: GoldenTestCase,
         top_k: int = 10,
-        collection: Optional[str] = None,
-        answer_override: Optional[str] = None,
+        collection: str | None = None,
+        answer_override: str | None = None,
     ) -> QueryResult:
         """Evaluate a single test case.
 
@@ -312,8 +312,8 @@ class EvalRunner:
         self,
         query: str,
         top_k: int,
-        collection: Optional[str],
-    ) -> List[Any]:
+        collection: str | None,
+    ) -> list[Any]:
         """Retrieve chunks using HybridSearch + optional Reranking.
 
         Falls back to an empty list if search is not configured.
@@ -343,7 +343,7 @@ class EvalRunner:
             logger.warning("Retrieval failed for '%s': %s", query[:40], exc)
             return []
 
-    def _generate_answer(self, query: str, chunks: List[Any]) -> str:
+    def _generate_answer(self, query: str, chunks: list[Any]) -> str:
         """Generate an answer from retrieved chunks.
 
         If a custom answer_generator is provided, use it.
@@ -385,7 +385,7 @@ class EvalRunner:
         return str(chunk)
 
     @staticmethod
-    def _aggregate_metrics(results: List[QueryResult]) -> Dict[str, float]:
+    def _aggregate_metrics(results: list[QueryResult]) -> dict[str, float]:
         """Compute average metrics across all query results.
 
         Args:
@@ -403,7 +403,7 @@ class EvalRunner:
             all_keys.update(qr.metrics.keys())
 
         # Average each metric
-        averages: Dict[str, float] = {}
+        averages: dict[str, float] = {}
         for key in sorted(all_keys):
             values = [qr.metrics[key] for qr in results if key in qr.metrics]
             averages[key] = sum(values) / len(values) if values else 0.0

@@ -11,10 +11,8 @@ because all sampled pages have valid_char_ratio < 10%.
 """
 from pathlib import Path
 
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import inch
 from PIL import Image, ImageDraw, ImageFont
-import io
+from reportlab.lib.pagesizes import letter
 
 
 def _render_page_image(width: int, height: int, page_num: int, total_pages: int) -> Image.Image:
@@ -42,7 +40,7 @@ def _render_page_image(width: int, height: int, page_num: int, total_pages: int)
             font_body = ImageFont.truetype(candidate, 28)
             font_caption = ImageFont.truetype(candidate, 20)
             break
-        except (OSError, IOError):
+        except OSError:
             continue
     if font_title is None:
         font_title = ImageFont.load_default()

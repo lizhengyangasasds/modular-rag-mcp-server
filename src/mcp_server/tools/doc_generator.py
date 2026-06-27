@@ -14,14 +14,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
-from src.libs.llm import LLMFactory, BaseLLM
+
+from src.libs.llm import BaseLLM, LLMFactory
 
 if TYPE_CHECKING:
-    from src.mcp_server.protocol_handler import ProtocolHandler
     from src.core.settings import Settings
+    from src.mcp_server.protocol_handler import ProtocolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ Parameters:
 - output_path: Optional file path to save the documentation
 """
 
-TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+TOOL_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "doc_type": {
@@ -59,7 +60,7 @@ TOOL_INPUT_SCHEMA: Dict[str, Any] = {
 class DocGeneratorTool:
     """MCP Tool for documentation generation."""
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings
 
     @property
@@ -76,7 +77,7 @@ class DocGeneratorTool:
     def generate_doc(
         self,
         doc_type: str = "readme",
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ) -> str:
         """Generate documentation.
 
@@ -175,7 +176,7 @@ class DocGeneratorTool:
     async def execute(
         self,
         doc_type: str = "readme",
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ) -> types.CallToolResult:
         """Execute the doc_generator tool."""
         import asyncio
@@ -213,7 +214,7 @@ def register_tool(protocol_handler: ProtocolHandler) -> None:
 
     async def handler(
         doc_type: str = "readme",
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ) -> types.CallToolResult:
         return await tool.execute(doc_type=doc_type, output_path=output_path)
 

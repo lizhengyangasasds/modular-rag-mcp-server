@@ -14,13 +14,12 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
 
 if TYPE_CHECKING:
     from src.mcp_server.protocol_handler import ProtocolHandler
-    from src.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ This tool initializes the project by:
 No parameters required - run with default settings.
 """
 
-TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+TOOL_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {},
 }

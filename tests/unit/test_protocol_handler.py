@@ -9,8 +9,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, patch
+from typing import Any
 
 import pytest
 from mcp import types
@@ -22,7 +21,6 @@ from src.mcp_server.protocol_handler import (
     create_mcp_server,
     get_protocol_handler,
 )
-
 
 # ============================================================================
 # Fixtures
@@ -39,7 +37,7 @@ def protocol_handler() -> ProtocolHandler:
 
 
 @pytest.fixture
-def sample_tool_schema() -> Dict[str, Any]:
+def sample_tool_schema() -> dict[str, Any]:
     """Sample JSON schema for a tool's input."""
     return {
         "type": "object",
@@ -59,7 +57,7 @@ def sample_tool_schema() -> Dict[str, Any]:
 class TestToolDefinition:
     """Tests for ToolDefinition dataclass."""
 
-    def test_create_tool_definition(self, sample_tool_schema: Dict[str, Any]) -> None:
+    def test_create_tool_definition(self, sample_tool_schema: dict[str, Any]) -> None:
         """Should create a ToolDefinition with all required fields."""
 
         async def dummy_handler(**kwargs: Any) -> str:
@@ -87,7 +85,7 @@ class TestToolRegistration:
     """Tests for tool registration functionality."""
 
     def test_register_tool_success(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should successfully register a tool."""
 
@@ -106,7 +104,7 @@ class TestToolRegistration:
         assert protocol_handler.tools["search"].description == "Search the knowledge base"
 
     def test_register_duplicate_tool_raises_error(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should raise ValueError when registering duplicate tool name."""
 
@@ -129,7 +127,7 @@ class TestToolRegistration:
             )
 
     def test_register_multiple_tools(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should register multiple different tools."""
 
@@ -173,7 +171,7 @@ class TestGetToolSchemas:
         assert schemas == []
 
     def test_returns_tool_schemas(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should return list of Tool objects with correct schema."""
 
@@ -206,7 +204,7 @@ class TestExecuteTool:
 
     @pytest.mark.asyncio
     async def test_execute_tool_returns_string(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should wrap string return in CallToolResult."""
 
@@ -232,7 +230,7 @@ class TestExecuteTool:
 
     @pytest.mark.asyncio
     async def test_execute_tool_returns_call_tool_result(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should pass through CallToolResult directly."""
 
@@ -256,11 +254,11 @@ class TestExecuteTool:
 
     @pytest.mark.asyncio
     async def test_execute_tool_returns_content_list(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should wrap content list in CallToolResult."""
 
-        async def handler(query: str, top_k: int = 5) -> List[types.TextContent]:
+        async def handler(query: str, top_k: int = 5) -> list[types.TextContent]:
             return [
                 types.TextContent(type="text", text="Result 1"),
                 types.TextContent(type="text", text="Result 2"),
@@ -294,7 +292,7 @@ class TestExecuteTool:
 
     @pytest.mark.asyncio
     async def test_execute_tool_with_invalid_params(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should return error for invalid parameters."""
 
@@ -318,7 +316,7 @@ class TestExecuteTool:
 
     @pytest.mark.asyncio
     async def test_execute_tool_internal_error(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should return generic error without leaking stack trace."""
 
@@ -357,7 +355,7 @@ class TestGetCapabilities:
         assert caps["tools"] == {}
 
     def test_capabilities_with_tools(
-        self, protocol_handler: ProtocolHandler, sample_tool_schema: Dict[str, Any]
+        self, protocol_handler: ProtocolHandler, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should indicate tools capability when tools registered."""
 
@@ -419,7 +417,7 @@ class TestCreateMCPServer:
         assert handler.server_version == "1.0.0"
 
     def test_uses_provided_protocol_handler(
-        self, sample_tool_schema: Dict[str, Any]
+        self, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Should use provided protocol handler if given."""
         custom_handler = ProtocolHandler(
@@ -456,7 +454,7 @@ class TestServerProtocolHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_list_tools_returns_registered_tools(
-        self, sample_tool_schema: Dict[str, Any]
+        self, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Server's list_tools handler should return registered tools."""
         handler = ProtocolHandler(
@@ -474,7 +472,7 @@ class TestServerProtocolHandlerIntegration:
             handler=search_handler,
         )
 
-        server = create_mcp_server("test-server", "1.0.0", protocol_handler=handler)
+        create_mcp_server("test-server", "1.0.0", protocol_handler=handler)
 
         # Verify tools are accessible through protocol handler
         tools = handler.get_tool_schemas()
@@ -483,7 +481,7 @@ class TestServerProtocolHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_call_tool_executes_handler(
-        self, sample_tool_schema: Dict[str, Any]
+        self, sample_tool_schema: dict[str, Any]
     ) -> None:
         """Server's call_tool handler should execute the tool."""
         handler = ProtocolHandler(
@@ -501,7 +499,7 @@ class TestServerProtocolHandlerIntegration:
             handler=search_handler,
         )
 
-        server = create_mcp_server("test-server", "1.0.0", protocol_handler=handler)
+        create_mcp_server("test-server", "1.0.0", protocol_handler=handler)
 
         # Execute through protocol handler
         result = await handler.execute_tool("search", {"query": "test", "top_k": 10})

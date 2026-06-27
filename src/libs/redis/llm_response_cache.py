@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from src.core.settings import RedisSettings
 from src.libs.redis.client import get_redis_client
@@ -25,7 +24,7 @@ from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-_Stats = Dict[str, int]
+_Stats = dict[str, int]
 
 
 class LLMResponseCache:
@@ -39,8 +38,8 @@ class LLMResponseCache:
 
     def __init__(
         self,
-        settings: Optional[RedisSettings] = None,
-        ttl: Optional[int] = None,
+        settings: RedisSettings | None = None,
+        ttl: int | None = None,
     ) -> None:
         self._ttl = ttl or 86400
         self._client = get_redis_client(settings)
@@ -54,7 +53,7 @@ class LLMResponseCache:
     # Public API
     # ------------------------------------------------------------------
 
-    def get(self, prompt_template: str, input_text: str) -> Optional[str]:
+    def get(self, prompt_template: str, input_text: str) -> str | None:
         """Return cached LLM response for the given prompt+input pair, or None."""
         try:
             key = self._key(prompt_template, input_text)
@@ -81,7 +80,7 @@ class LLMResponseCache:
 
     def get_metadata(
         self, prompt_template: str, input_text: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Return cached structured metadata dict, or None."""
         try:
             key = self._key(prompt_template, input_text)
@@ -103,7 +102,7 @@ class LLMResponseCache:
         self,
         prompt_template: str,
         input_text: str,
-        metadata: Dict[str, Any],
+        metadata: dict[str, Any],
     ) -> bool:
         """Cache a structured metadata dict result."""
         try:

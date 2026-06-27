@@ -15,15 +15,15 @@ Design Principles:
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Pattern, Set
+from re import Pattern
+from typing import Any
 
 import jieba
 
 from src.core.types import ProcessedQuery
 
-
 # Default stopwords for Chinese
-CHINESE_STOPWORDS: Set[str] = {
+CHINESE_STOPWORDS: set[str] = {
     # 疑问词
     "如何", "怎么", "怎样", "什么", "哪个", "哪些", "为什么", "为何",
     "谁", "多少", "几", "是否", "能否", "可否",
@@ -47,7 +47,7 @@ CHINESE_STOPWORDS: Set[str] = {
 }
 
 # Default stopwords for English
-ENGLISH_STOPWORDS: Set[str] = {
+ENGLISH_STOPWORDS: set[str] = {
     # Articles
     "a", "an", "the",
     # Prepositions
@@ -71,7 +71,7 @@ ENGLISH_STOPWORDS: Set[str] = {
 }
 
 # Combined default stopwords
-DEFAULT_STOPWORDS: Set[str] = CHINESE_STOPWORDS | ENGLISH_STOPWORDS
+DEFAULT_STOPWORDS: set[str] = CHINESE_STOPWORDS | ENGLISH_STOPWORDS
 
 # Pattern for filter syntax: key:value
 FILTER_PATTERN: Pattern = re.compile(r'(\w+):([^\s]+)')
@@ -80,14 +80,14 @@ FILTER_PATTERN: Pattern = re.compile(r'(\w+):([^\s]+)')
 @dataclass
 class QueryProcessorConfig:
     """Configuration for QueryProcessor.
-    
+
     Attributes:
         stopwords: Set of words to filter out
         min_keyword_length: Minimum length for a keyword to be included
         max_keywords: Maximum number of keywords to extract
         enable_filter_parsing: Whether to parse filter syntax from query
     """
-    stopwords: Set[str] = field(default_factory=lambda: DEFAULT_STOPWORDS.copy())
+    stopwords: set[str] = field(default_factory=lambda: DEFAULT_STOPWORDS.copy())
     min_keyword_length: int = 1
     max_keywords: int = 20
     enable_filter_parsing: bool = True
@@ -95,31 +95,31 @@ class QueryProcessorConfig:
 
 class QueryProcessor:
     """Preprocesses user queries for retrieval.
-    
+
     Extracts keywords, filters stopwords, and parses filter syntax
     to prepare queries for Dense and Sparse retrievers.
-    
+
     Example:
         >>> processor = QueryProcessor()
         >>> result = processor.process("如何配置 Azure OpenAI？")
         >>> print(result.keywords)
         ['配置', 'Azure', 'OpenAI']
     """
-    
-    def __init__(self, config: Optional[QueryProcessorConfig] = None):
+
+    def __init__(self, config: QueryProcessorConfig | None = None):
         """Initialize QueryProcessor.
-        
+
         Args:
             config: Optional configuration. Uses defaults if not provided.
         """
         self.config = config or QueryProcessorConfig()
-    
+
     def process(self, query: str) -> ProcessedQuery:
         """Process a user query into structured format.
-        
+
         Args:
             query: Raw user query string
-            
+
         Returns:
             ProcessedQuery with extracted keywords and filters
         """
@@ -129,58 +129,58 @@ class QueryProcessor:
                 keywords=[],
                 filters={}
             )
-        
+
         # Normalize query
         normalized = self._normalize(query)
-        
+
         # Extract filters from query (e.g., "collection:docs")
         filters, query_without_filters = self._extract_filters(normalized)
-        
+
         # Tokenize and extract keywords
         tokens = self._tokenize(query_without_filters)
-        
+
         # Filter stopwords and apply constraints
         keywords = self._filter_keywords(tokens)
-        
+
         return ProcessedQuery(
             original_query=query,
             keywords=keywords,
             filters=filters
         )
-    
+
     def _normalize(self, query: str) -> str:
         """Normalize query string.
-        
+
         - Strip whitespace
         - Normalize unicode
         - Convert to consistent format
-        
+
         Args:
             query: Raw query string
-            
+
         Returns:
             Normalized query string
         """
         # Strip and normalize whitespace
         normalized = " ".join(query.split())
         return normalized
-    
-    def _extract_filters(self, query: str) -> tuple[Dict[str, Any], str]:
+
+    def _extract_filters(self, query: str) -> tuple[dict[str, Any], str]:
         """Extract filter syntax from query.
-        
+
         Supports syntax like: "collection:api-docs keyword1 keyword2"
-        
+
         Args:
             query: Normalized query string
-            
+
         Returns:
             Tuple of (filters dict, query without filter syntax)
         """
         if not self.config.enable_filter_parsing:
             return {}, query
-        
-        filters: Dict[str, Any] = {}
-        
+
+        filters: dict[str, Any] = {}
+
         # Find all filter patterns
         matches = FILTER_PATTERN.findall(query)
         for key, value in matches:
@@ -200,27 +200,27 @@ class QueryProcessor:
             else:
                 # Generic filter
                 filters[key] = value
-        
+
         # Remove filter patterns from query
         query_without_filters = FILTER_PATTERN.sub("", query).strip()
         query_without_filters = " ".join(query_without_filters.split())
-        
+
         return filters, query_without_filters
-    
-    def _tokenize(self, text: str) -> List[str]:
+
+    def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into words/terms.
-        
+
         Uses jieba for Chinese text segmentation, consistent with the
         index-side tokenizer (SparseEncoder) so BM25 matching works.
         English text is handled natively by jieba (preserved as-is).
-        
+
         Args:
             text: Text to tokenize
-            
+
         Returns:
             List of tokens
         """
-        tokens: List[str] = []
+        tokens: list[str] = []
 
         # Use jieba to segment (handles Chinese + keeps English intact)
         raw_tokens = jieba.lcut(text)
@@ -233,63 +233,63 @@ class QueryProcessor:
             if re.fullmatch(r'[\s\W]+', token, re.UNICODE):
                 continue
             tokens.append(token)
-        
+
         return tokens
-    
-    def _filter_keywords(self, tokens: List[str]) -> List[str]:
+
+    def _filter_keywords(self, tokens: list[str]) -> list[str]:
         """Filter tokens to get meaningful keywords.
-        
+
         - Remove stopwords
         - Apply minimum length constraint
         - Deduplicate while preserving order
         - Apply maximum count limit
-        
+
         Args:
             tokens: List of tokens
-            
+
         Returns:
             List of filtered keywords
         """
-        seen: Set[str] = set()
-        keywords: List[str] = []
-        
+        seen: set[str] = set()
+        keywords: list[str] = []
+
         for token in tokens:
             # Normalize for comparison
             token_lower = token.lower()
-            
+
             # Skip if already seen (case-insensitive dedup)
             if token_lower in seen:
                 continue
-            
+
             # Skip stopwords (check both original and lowercase)
             if token in self.config.stopwords or token_lower in self.config.stopwords:
                 continue
-            
+
             # Skip if too short
             if len(token) < self.config.min_keyword_length:
                 continue
-            
+
             # Add keyword (preserve original case)
             seen.add(token_lower)
             keywords.append(token)
-            
+
             # Stop if we have enough
             if len(keywords) >= self.config.max_keywords:
                 break
-        
+
         return keywords
-    
-    def add_stopwords(self, words: Set[str]) -> None:
+
+    def add_stopwords(self, words: set[str]) -> None:
         """Add words to stopword set.
-        
+
         Args:
             words: Set of words to add
         """
         self.config.stopwords.update(words)
-    
-    def remove_stopwords(self, words: Set[str]) -> None:
+
+    def remove_stopwords(self, words: set[str]) -> None:
         """Remove words from stopword set.
-        
+
         Args:
             words: Set of words to remove
         """
@@ -297,19 +297,19 @@ class QueryProcessor:
 
 
 def create_query_processor(
-    stopwords: Optional[Set[str]] = None,
+    stopwords: set[str] | None = None,
     min_keyword_length: int = 1,
     max_keywords: int = 20,
     enable_filter_parsing: bool = True
 ) -> QueryProcessor:
     """Factory function to create QueryProcessor.
-    
+
     Args:
         stopwords: Custom stopwords set. Uses default if None.
         min_keyword_length: Minimum keyword length
         max_keywords: Maximum keywords to extract
         enable_filter_parsing: Whether to parse filter syntax
-        
+
     Returns:
         Configured QueryProcessor instance
     """

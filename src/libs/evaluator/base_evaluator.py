@@ -8,7 +8,7 @@ through configuration-driven instantiation.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class BaseEvaluator(ABC):
@@ -28,12 +28,12 @@ class BaseEvaluator(ABC):
     def evaluate(
         self,
         query: str,
-        retrieved_chunks: List[Any],
-        generated_answer: Optional[str] = None,
-        ground_truth: Optional[Any] = None,
-        trace: Optional[Any] = None,
+        retrieved_chunks: list[Any],
+        generated_answer: str | None = None,
+        ground_truth: Any | None = None,
+        trace: Any | None = None,
         **kwargs: Any,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Evaluate retrieval and generation quality.
 
         Args:
@@ -67,7 +67,7 @@ class BaseEvaluator(ABC):
         if not query.strip():
             raise ValueError("Query cannot be empty or whitespace-only")
 
-    def validate_retrieved_chunks(self, retrieved_chunks: List[Any]) -> None:
+    def validate_retrieved_chunks(self, retrieved_chunks: list[Any]) -> None:
         """Validate retrieved chunks structure.
 
         Args:
@@ -95,12 +95,12 @@ class NoneEvaluator(BaseEvaluator):
     def evaluate(
         self,
         query: str,
-        retrieved_chunks: List[Any],
-        generated_answer: Optional[str] = None,
-        ground_truth: Optional[Any] = None,
-        trace: Optional[Any] = None,
+        retrieved_chunks: list[Any],
+        generated_answer: str | None = None,
+        ground_truth: Any | None = None,
+        trace: Any | None = None,
         **kwargs: Any,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         self.validate_query(query)
         self.validate_retrieved_chunks(retrieved_chunks)
         return {}

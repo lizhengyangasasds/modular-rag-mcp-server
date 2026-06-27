@@ -6,9 +6,8 @@ thin base class that all cache implementations inherit from.
 
 from __future__ import annotations
 
-import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import redis
 
@@ -17,11 +16,11 @@ from src.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-_redis_client: Optional[redis.Redis] = None
+_redis_client: redis.Redis | None = None
 _redis_lock = threading.Lock()
 
 
-def get_redis_client(settings: Optional[RedisSettings] = None) -> redis.Redis:
+def get_redis_client(settings: RedisSettings | None = None) -> redis.Redis:
     """Return a global Redis client (singleton pattern, thread-safe).
 
     If Redis is disabled or unreachable, a dummy client that never blocks
@@ -92,10 +91,10 @@ class _DummyRedis:
     def ping(self) -> bool:
         return False
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         return None
 
-    def set(self, key: str, value: Any, ex: Optional[int] = None) -> bool:
+    def set(self, key: str, value: Any, ex: int | None = None) -> bool:
         return True
 
     def setex(self, key: str, time: int, value: str) -> bool:
@@ -107,19 +106,19 @@ class _DummyRedis:
     def exists(self, key: str) -> int:
         return 0
 
-    def hset(self, name: str, mapping: Optional[Dict[str, str]] = None, **kwargs: Any) -> int:
+    def hset(self, name: str, mapping: dict[str, str] | None = None, **kwargs: Any) -> int:
         return 0
 
-    def hget(self, name: str, key: str) -> Optional[str]:
+    def hget(self, name: str, key: str) -> str | None:
         return None
 
-    def hgetall(self, name: str) -> Dict[str, str]:
+    def hgetall(self, name: str) -> dict[str, str]:
         return {}
 
     def expire(self, name: str, time: int) -> bool:
         return False
 
-    def keys(self, pattern: str) -> List[str]:
+    def keys(self, pattern: str) -> list[str]:
         return []
 
     def close(self) -> None:
@@ -131,13 +130,13 @@ class _DummyRedis:
 
 class _DummyPipeline:
     def __init__(self) -> None:
-        self._commands: List[Any] = []
+        self._commands: list[Any] = []
 
-    def __getitem__(self, key: str) -> "_DummyPipeline":
+    def __getitem__(self, key: str) -> _DummyPipeline:
         self._commands.append(("get", key))
         return self
 
-    def __setitem__(self, key: str, value: Any) -> "_DummyPipeline":
+    def __setitem__(self, key: str, value: Any) -> _DummyPipeline:
         self._commands.append(("set", key, value))
         return self
 
@@ -149,7 +148,7 @@ class _DummyPipeline:
         self._commands.append(("setex", key, time, value))
         return self
 
-    def execute(self) -> List[Any]:
+    def execute(self) -> list[Any]:
         return [True] * len(self._commands)
 
     def __enter__(self) -> _DummyPipeline:
@@ -168,11 +167,11 @@ class BaseCache:
 
     KEY_PREFIX: str = "rag"
 
-    def __init__(self, ttl: int, key_prefix: Optional[str] = None) -> None:
+    def __init__(self, ttl: int, key_prefix: str | None = None) -> None:
         self.ttl = ttl
         if key_prefix:
             self.KEY_PREFIX = key_prefix
-        self._client: Optional[redis.Redis] = None
+        self._client: redis.Redis | None = None
 
     @property
     def client(self) -> redis.Redis:
@@ -183,14 +182,14 @@ class BaseCache:
     def _make_key(self, *parts: Any) -> str:
         return ":".join([self.KEY_PREFIX] + [str(p) for p in parts])
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         try:
             return self.client.get(key)
         except redis.RedisError as e:
             logger.warning(f"Redis GET failed on {key}: {e}")
             return None
 
-    def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
+    def set(self, key: str, value: str, ttl: int | None = None) -> bool:
         try:
             effective_ttl = ttl if ttl is not None else self.ttl
             return bool(self.client.set(key, value, ex=effective_ttl))

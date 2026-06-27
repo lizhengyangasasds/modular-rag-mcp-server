@@ -12,16 +12,14 @@ Tests cover:
 - Edge cases: empty text, missing file, zero pages
 """
 
-import tempfile
-from pathlib import Path
 
 import pytest
 
 from src.libs.loader.pdf_quality_checker import (
     DocumentQualityError,
+    PageReport,
     PdfQualityChecker,
     QualityReport,
-    PageReport,
 )
 
 

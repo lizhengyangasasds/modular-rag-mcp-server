@@ -9,11 +9,11 @@ This package contains the core business logic including:
 - Trace collection
 """
 
-from src.core.types import Document, Chunk, ChunkRecord, Metadata, Vector, SparseVector
+from src.core.types import Chunk, ChunkRecord, Document, Metadata, SparseVector, Vector
 
 __all__ = [
     "Document",
-    "Chunk", 
+    "Chunk",
     "ChunkRecord",
     "Metadata",
     "Vector",

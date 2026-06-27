@@ -11,8 +11,8 @@ from src.libs.evaluator.custom_evaluator import CustomEvaluator
 from src.libs.evaluator.evaluator_factory import EvaluatorFactory
 
 __all__ = [
-	"BaseEvaluator",
-	"NoneEvaluator",
-	"CustomEvaluator",
-	"EvaluatorFactory",
+    "BaseEvaluator",
+    "NoneEvaluator",
+    "CustomEvaluator",
+    "EvaluatorFactory",
 ]

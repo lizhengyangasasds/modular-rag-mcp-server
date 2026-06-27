@@ -10,10 +10,8 @@ Covers:
 from __future__ import annotations
 
 import json
-import sqlite3
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,12 +20,10 @@ from src.ingestion.document_manager import (
     CollectionStats,
     DeleteResult,
     DocumentDetail,
-    DocumentInfo,
     DocumentManager,
 )
 from src.ingestion.storage.bm25_indexer import BM25Indexer
 from src.libs.loader.file_integrity import SQLiteIntegrityChecker
-
 
 # =====================================================================
 # BM25Indexer.remove_document tests
@@ -179,9 +175,9 @@ class TestFileIntegrityEnhancements:
 # =====================================================================
 
 def _make_manager(
-    integrity_records: Optional[List[Dict[str, Any]]] = None,
-    chroma_get_ids: Optional[List[str]] = None,
-    image_list: Optional[List[Dict[str, Any]]] = None,
+    integrity_records: list[dict[str, Any]] | None = None,
+    chroma_get_ids: list[str] | None = None,
+    image_list: list[dict[str, Any]] | None = None,
 ) -> DocumentManager:
     """Build a DocumentManager with mock stores."""
     chroma = MagicMock()

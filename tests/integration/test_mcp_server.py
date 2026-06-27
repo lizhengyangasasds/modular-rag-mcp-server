@@ -6,17 +6,17 @@ import json
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
 
 def send_and_receive(
     proc: subprocess.Popen,
-    requests: List[Dict[str, Any]],
+    requests: list[dict[str, Any]],
     timeout: float = 5.0,
     expected_responses: int = 0,
-) -> List[str]:
+) -> list[str]:
     """Send requests to proc stdin and collect stdout lines.
 
     Args:
@@ -40,16 +40,16 @@ def send_and_receive(
     lines = []
     start = time.time()
     response_count = 0
-    
+
     # Count expected responses (requests with 'id' field, excluding notifications)
     if expected_responses == 0:
         expected_responses = sum(1 for req in requests if 'id' in req)
-    
+
     while time.time() - start < timeout:
         # Check if we got enough responses
         if expected_responses > 0 and response_count >= expected_responses:
             break
-            
+
         line = proc.stdout.readline()
         if not line:
             # Give a bit more time for slow responses
@@ -69,7 +69,7 @@ def send_and_receive(
     return lines
 
 
-def find_response(lines: List[str], request_id: int) -> Optional[Dict[str, Any]]:
+def find_response(lines: list[str], request_id: int) -> dict[str, Any] | None:
     """Find JSON-RPC response with given id in lines."""
     for line in lines:
         if not line.startswith('{"jsonrpc"'):
@@ -194,7 +194,7 @@ def test_mcp_server_tools_list_stdio() -> None:
     # Should have at least query_knowledge_hub and list_collections tools registered
     assert isinstance(tools_response["result"]["tools"], list)
     assert len(tools_response["result"]["tools"]) >= 2
-    
+
     # Verify registered tools are present
     tool_names = [t["name"] for t in tools_response["result"]["tools"]]
     assert "query_knowledge_hub" in tool_names
@@ -210,7 +210,7 @@ def test_mcp_server_tools_list_stdio() -> None:
 @pytest.mark.image
 def test_multimodal_assembler_image_content_structure() -> None:
     """Test that MultimodalAssembler produces correct MCP ImageContent structure.
-    
+
     Verifies:
     - ImageContent blocks have type="image"
     - mimeType is correctly set (e.g., "image/png")
@@ -219,21 +219,21 @@ def test_multimodal_assembler_image_content_structure() -> None:
     import base64
     import tempfile
     from pathlib import Path
-    
+
     from mcp import types
-    
+
     from src.core.response.multimodal_assembler import MultimodalAssembler
     from src.core.types import RetrievalResult
-    
+
     # Create test image (minimal valid PNG)
     png_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         img_path = Path(tmpdir) / "test_img.png"
         img_path.write_bytes(png_data)
-        
+
         assembler = MultimodalAssembler()
-        
+
         result = RetrievalResult(
             chunk_id="test_chunk",
             score=0.95,
@@ -243,18 +243,18 @@ def test_multimodal_assembler_image_content_structure() -> None:
                 "images": [{"id": "test_img", "path": str(img_path)}],
             },
         )
-        
+
         blocks = assembler.assemble_for_result(result)
-        
+
         # Find ImageContent blocks
         image_blocks = [b for b in blocks if isinstance(b, types.ImageContent)]
         assert len(image_blocks) >= 1, "Should produce at least one ImageContent block"
-        
+
         img_block = image_blocks[0]
         assert img_block.type == "image", "ImageContent type should be 'image'"
         assert img_block.mimeType == "image/png", "MIME type should be 'image/png'"
         assert img_block.data, "data should not be empty"
-        
+
         # Verify base64 is valid
         decoded = base64.b64decode(img_block.data)
         assert decoded.startswith(b"\x89PNG"), "Decoded data should be valid PNG"
@@ -264,7 +264,7 @@ def test_multimodal_assembler_image_content_structure() -> None:
 @pytest.mark.image
 def test_response_builder_multimodal_integration() -> None:
     """Test that ResponseBuilder correctly integrates multimodal content.
-    
+
     Verifies:
     - ResponseBuilder produces MCPToolResponse with image_contents
     - to_mcp_content() returns ImageContent blocks when images present
@@ -272,26 +272,26 @@ def test_response_builder_multimodal_integration() -> None:
     """
     import tempfile
     from pathlib import Path
-    
+
     from mcp import types
-    
+
     from src.core.response.multimodal_assembler import MultimodalAssembler
     from src.core.response.response_builder import ResponseBuilder
     from src.core.types import RetrievalResult
-    
+
     # Create test image
     png_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         img_path = Path(tmpdir) / "builder_test_img.png"
         img_path.write_bytes(png_data)
-        
+
         assembler = MultimodalAssembler()
         builder = ResponseBuilder(
             multimodal_assembler=assembler,
             enable_multimodal=True,
         )
-        
+
         results = [
             RetrievalResult(
                 chunk_id="chunk_001",
@@ -303,17 +303,17 @@ def test_response_builder_multimodal_integration() -> None:
                 },
             ),
         ]
-        
+
         response = builder.build(results, query="test query")
-        
+
         # Check MCPToolResponse has images
         assert response.has_images, "Response should have images"
         assert len(response.image_contents) >= 1, "Should have at least one ImageContent"
-        
+
         # Check metadata
         assert response.metadata.get("has_images") is True
         assert response.metadata.get("image_count", 0) >= 1
-        
+
         # Check to_mcp_content() output
         mcp_blocks = response.to_mcp_content()
         image_blocks = [b for b in mcp_blocks if isinstance(b, types.ImageContent)]
@@ -324,23 +324,23 @@ def test_response_builder_multimodal_integration() -> None:
 @pytest.mark.image
 def test_mcp_tool_response_image_content_format() -> None:
     """Test MCPToolResponse.to_mcp_content() returns correct format for images.
-    
+
     Verifies the exact structure expected by MCP protocol:
     - ImageContent blocks have correct type, mimeType, data fields
     - Multiple content types (text + image) can coexist
     """
     from mcp import types
-    
+
     from src.core.response.citation_generator import Citation
     from src.core.response.response_builder import MCPToolResponse
-    
+
     # Create response with mock image content
     mock_image = types.ImageContent(
         type="image",
         data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
         mimeType="image/png",
     )
-    
+
     response = MCPToolResponse(
         content="# Test Result\n\nContent with image reference.",
         citations=[
@@ -356,17 +356,17 @@ def test_mcp_tool_response_image_content_format() -> None:
         metadata={"query": "test", "result_count": 1},
         image_contents=[mock_image],
     )
-    
+
     # Get MCP content blocks
     blocks = response.to_mcp_content()
-    
+
     # Should have text blocks and image blocks
     text_blocks = [b for b in blocks if isinstance(b, types.TextContent)]
     image_blocks = [b for b in blocks if isinstance(b, types.ImageContent)]
-    
+
     assert len(text_blocks) >= 1, "Should have at least one TextContent"
     assert len(image_blocks) == 1, "Should have exactly one ImageContent"
-    
+
     # Verify image block structure
     img = image_blocks[0]
     assert img.type == "image"
@@ -378,7 +378,7 @@ def test_mcp_tool_response_image_content_format() -> None:
 @pytest.mark.image
 def test_multimodal_mime_type_detection() -> None:
     """Test correct MIME type detection for different image formats.
-    
+
     Verifies:
     - PNG files get image/png
     - JPEG files get image/jpeg
@@ -386,25 +386,25 @@ def test_multimodal_mime_type_detection() -> None:
     """
     import tempfile
     from pathlib import Path
-    
+
     from src.core.response.multimodal_assembler import MultimodalAssembler
-    
+
     assembler = MultimodalAssembler()
-    
+
     test_cases = [
         # (filename, data_bytes, expected_mime)
         ("test.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 50, "image/png"),
         ("test.jpg", b"\xff\xd8\xff\xe0" + b"\x00" * 50, "image/jpeg"),
         ("test.gif", b"GIF89a" + b"\x00" * 50, "image/gif"),
     ]
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         for filename, data, expected_mime in test_cases:
             img_path = Path(tmpdir) / filename
             img_path.write_bytes(data)
-            
+
             content = assembler.load_image(str(img_path))
-            
+
             assert content is not None, f"Failed to load {filename}"
             assert content.mime_type == expected_mime, (
                 f"MIME type mismatch for {filename}: "

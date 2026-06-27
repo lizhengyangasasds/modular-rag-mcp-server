@@ -9,7 +9,6 @@ predictable and testable.
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Union
 
 from src.core.settings import resolve_path
 from src.core.trace.trace_context import TraceContext
@@ -28,7 +27,7 @@ class TraceCollector:
             Parent directories are created automatically.
     """
 
-    def __init__(self, traces_path: Union[str, Path] = _DEFAULT_TRACES_PATH) -> None:
+    def __init__(self, traces_path: str | Path = _DEFAULT_TRACES_PATH) -> None:
         self._path = Path(traces_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
 

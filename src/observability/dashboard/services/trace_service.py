@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from src.core.settings import resolve_path
 
@@ -26,7 +26,7 @@ class TraceService:
             ``logs/traces.jsonl``.
     """
 
-    def __init__(self, traces_path: Optional[Union[str, Path]] = None) -> None:
+    def __init__(self, traces_path: str | Path | None = None) -> None:
         self.traces_path = Path(traces_path) if traces_path else DEFAULT_TRACES_PATH
 
     # ------------------------------------------------------------------
@@ -35,9 +35,9 @@ class TraceService:
 
     def list_traces(
         self,
-        trace_type: Optional[str] = None,
+        trace_type: str | None = None,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return traces in reverse-chronological order.
 
         Args:
@@ -58,7 +58,7 @@ class TraceService:
 
         return traces[:limit]
 
-    def get_trace(self, trace_id: str) -> Optional[Dict[str, Any]]:
+    def get_trace(self, trace_id: str) -> dict[str, Any] | None:
         """Retrieve a single trace by its ``trace_id``.
 
         Returns:
@@ -69,7 +69,7 @@ class TraceService:
                 return t
         return None
 
-    def get_stage_timings(self, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def get_stage_timings(self, trace: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract stage timings from a trace.
 
         Returns:
@@ -77,7 +77,7 @@ class TraceService:
             Ordered by appearance.
         """
         stages = trace.get("stages", [])
-        timings: List[Dict[str, Any]] = []
+        timings: list[dict[str, Any]] = []
         for s in stages:
             # The raw stage dict has: stage, timestamp, data (dict), elapsed_ms
             # Extract the inner 'data' dict directly rather than flattening
@@ -97,7 +97,7 @@ class TraceService:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _load_all(self) -> List[Dict[str, Any]]:
+    def _load_all(self) -> list[dict[str, Any]]:
         """Parse every line in the JSONL file.
 
         Silently skips malformed lines.
@@ -105,7 +105,7 @@ class TraceService:
         if not self.traces_path.exists():
             return []
 
-        traces: List[Dict[str, Any]] = []
+        traces: list[dict[str, Any]] = []
         with self.traces_path.open("r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()

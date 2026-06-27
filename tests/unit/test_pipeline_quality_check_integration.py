@@ -15,17 +15,16 @@ Scenarios covered:
 5. Quality check fires between load and split (Stage 2 ordering)
 """
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from src.core.trace.trace_context import TraceContext
-from src.core.types import Document, Chunk
+from src.core.types import Chunk, Document
 from src.ingestion.pipeline import IngestionPipeline
-from src.libs.loader import PdfQualityChecker, DocumentQualityError, QualityReport
+from src.libs.loader import DocumentQualityError, PdfQualityChecker, QualityReport
 from src.libs.loader.file_integrity import FileIntegrityChecker
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────
 
@@ -66,7 +65,7 @@ def _fake_quality_report(
 def _make_fake_pipeline(
     fail_on_scanned: bool = False,
     quality_check_enabled: bool = True,
-    quality_report: Optional[MagicMock] = None,
+    quality_report: MagicMock | None = None,
 ) -> Any:
     """Build a fake IngestionPipeline that exercises real Stage 2b code.
 
@@ -222,7 +221,7 @@ class TestStage2bScannedPdf:
         # Override: use the REAL PdfQualityChecker for this single test
         fp.quality_checker = PdfQualityChecker(fail_on_scanned=False)
         # Provide pypdf-extracted pages manually (text-only path, PyMuPDF-free)
-        from src.libs.loader.pdf_quality_checker import QualityReport, PageReport
+        from src.libs.loader.pdf_quality_checker import PageReport, QualityReport
         empty_pages = [
             PageReport(page=i + 1, valid_char_count=0, total_char_count=0,
                        valid_char_ratio=0.0, is_suspicious=False, suspicion_reasons=[])
@@ -266,7 +265,6 @@ class TestStage2bFailOnScanned:
         # raises when check() is called.
         fp = _make_fake_pipeline(quality_report=report, fail_on_scanned=True)
         # Override the mock so check() actually raises
-        from src.libs.loader import DocumentQualityError
         fp.quality_checker.check.side_effect = DocumentQualityError(
             "Scanned PDF detected",
             report=report.__wrapped__ if hasattr(report, "__wrapped__") else report,
@@ -287,8 +285,7 @@ class TestStage2bFailOnScanned:
 
         # Use REAL PdfQualityChecker with fail_on_scanned=True
         fp = _make_fake_pipeline(quality_check_enabled=True, fail_on_scanned=True)
-        from src.libs.loader import DocumentQualityError
-        from src.libs.loader.pdf_quality_checker import QualityReport, PageReport
+        from src.libs.loader.pdf_quality_checker import PageReport, QualityReport
         empty_pages = [
             PageReport(page=1, valid_char_count=0, total_char_count=0,
                        valid_char_ratio=0.0, is_suspicious=False, suspicion_reasons=[])
@@ -346,7 +343,7 @@ class TestStage2bOrdering:
 
     def test_callback_ordering(self) -> None:
         fp = _make_fake_pipeline(quality_report=_fake_quality_report())
-        calls: List[Tuple[str, int, int]] = []
+        calls: list[tuple[str, int, int]] = []
 
         def on_progress(stage: str, current: int, total: int) -> None:
             calls.append((stage, current, total))

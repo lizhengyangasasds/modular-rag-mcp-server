@@ -14,7 +14,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from src.libs.llm.base_llm import ChatResponse, Message
 
@@ -22,23 +22,23 @@ from src.libs.llm.base_llm import ChatResponse, Message
 @dataclass
 class ImageInput:
     """Represents an image input for Vision LLM.
-    
+
     Supports multiple input formats:
     - File path: Local image file to be read and encoded
     - Bytes: Raw image bytes (already loaded)
     - Base64: Already encoded image string
-    
+
     Attributes:
         path: Path to the image file (if loading from disk).
         data: Raw image bytes (if already loaded).
         base64: Base64-encoded image string (if already encoded).
         mime_type: MIME type of the image (e.g., 'image/png', 'image/jpeg').
     """
-    path: Optional[Union[str, Path]] = None
-    data: Optional[bytes] = None
-    base64: Optional[str] = None
+    path: str | Path | None = None
+    data: bytes | None = None
+    base64: str | None = None
     mime_type: str = "image/png"
-    
+
     def __post_init__(self) -> None:
         """Validate that exactly one input format is provided."""
         provided_inputs = sum([
@@ -54,15 +54,15 @@ class ImageInput:
 
 class BaseVisionLLM(ABC):
     """Abstract base class for Vision LLM providers.
-    
+
     Vision LLMs accept both text and image inputs, enabling multimodal
     understanding tasks such as image captioning, visual question answering,
     and document analysis with embedded images.
-    
+
     All Vision LLM implementations must inherit from this class and implement
     the chat_with_image() method. This ensures consistent interface across
     different providers (Azure Vision, Ollama Vision, etc.).
-    
+
     Design Principles Applied:
     - Pluggable: Subclasses can be swapped without changing upstream code.
     - Observable: Accepts optional TraceContext for observability integration.
@@ -71,21 +71,21 @@ class BaseVisionLLM(ABC):
     - Extension Point: Image preprocessing (compression, format conversion) can be
       added in subclasses without changing the base interface.
     """
-    
+
     @abstractmethod
     def chat_with_image(
         self,
         text: str,
         image: ImageInput,
-        messages: Optional[list[Message]] = None,
-        trace: Optional[Any] = None,
+        messages: list[Message] | None = None,
+        trace: Any | None = None,
         **kwargs: Any,
     ) -> ChatResponse:
         """Generate a response based on text prompt and image input.
-        
+
         This method enables multimodal interactions where the model can "see"
         the image and respond to questions or generate descriptions about it.
-        
+
         Args:
             text: The text prompt or question about the image.
             image: The image input (path, bytes, or base64).
@@ -93,14 +93,14 @@ class BaseVisionLLM(ABC):
                 the text + image will be appended as the latest user message.
             trace: Optional TraceContext for observability (reserved for Stage F).
             **kwargs: Provider-specific parameters (temperature, max_tokens, etc.).
-        
+
         Returns:
             ChatResponse containing the generated text and metadata.
-        
+
         Raises:
             ValueError: If text is empty or image input is invalid.
             RuntimeError: If the Vision LLM provider call fails.
-        
+
         Example:
             >>> image = ImageInput(path="diagram.png")
             >>> response = vision_llm.chat_with_image(
@@ -111,13 +111,13 @@ class BaseVisionLLM(ABC):
             "This diagram shows a system architecture with..."
         """
         pass
-    
+
     def validate_text(self, text: str) -> None:
         """Validate text prompt.
-        
+
         Args:
             text: Text prompt to validate.
-        
+
         Raises:
             ValueError: If text is empty or not a string.
         """
@@ -125,13 +125,13 @@ class BaseVisionLLM(ABC):
             raise ValueError(f"Text must be a string, got {type(text).__name__}")
         if not text or not text.strip():
             raise ValueError("Text prompt cannot be empty")
-    
+
     def validate_image(self, image: ImageInput) -> None:
         """Validate image input.
-        
+
         Args:
             image: Image input to validate.
-        
+
         Raises:
             ValueError: If image is not an ImageInput instance.
         """
@@ -139,29 +139,29 @@ class BaseVisionLLM(ABC):
             raise ValueError(
                 f"Image must be an ImageInput instance, got {type(image).__name__}"
             )
-    
+
     def preprocess_image(
         self,
         image: ImageInput,
-        max_size: Optional[tuple[int, int]] = None,
+        max_size: tuple[int, int] | None = None,
     ) -> ImageInput:
         """Preprocess image before sending to Vision LLM.
-        
+
         This method provides an extension point for image preprocessing such as:
         - Resizing to meet provider size limits
         - Format conversion (e.g., PNG to JPEG)
         - Compression to reduce payload size
-        
+
         Default implementation returns the image unchanged. Subclasses can
         override to add provider-specific preprocessing.
-        
+
         Args:
             image: The input image to preprocess.
             max_size: Optional maximum dimensions (width, height) in pixels.
-        
+
         Returns:
             Preprocessed ImageInput (may be the same instance if no changes needed).
-        
+
         Note:
             Preprocessing should be idempotent - calling it multiple times
             with the same input should produce the same output.

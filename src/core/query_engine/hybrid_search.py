@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from src.core.types import ProcessedQuery, RetrievalResult
 
@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 
 def _snapshot_results(
-    results: Optional[List[RetrievalResult]],
-) -> List[Dict[str, Any]]:
+    results: list[RetrievalResult] | None,
+) -> list[dict[str, Any]]:
     """Create a serialisable snapshot of retrieval results for trace storage.
 
     Args:
@@ -60,7 +60,7 @@ def _snapshot_results(
 @dataclass
 class HybridSearchConfig:
     """Configuration for HybridSearch.
-    
+
     Attributes:
         dense_top_k: Number of results from dense retrieval
         sparse_top_k: Number of results from sparse retrieval
@@ -82,7 +82,7 @@ class HybridSearchConfig:
 @dataclass
 class HybridSearchResult:
     """Result of a hybrid search operation.
-    
+
     Attributes:
         results: Final ranked list of RetrievalResults
         dense_results: Results from dense retrieval (for debugging)
@@ -92,37 +92,37 @@ class HybridSearchResult:
         used_fallback: Whether fallback mode was used
         processed_query: The processed query (for debugging)
     """
-    results: List[RetrievalResult] = field(default_factory=list)
-    dense_results: Optional[List[RetrievalResult]] = None
-    sparse_results: Optional[List[RetrievalResult]] = None
-    dense_error: Optional[str] = None
-    sparse_error: Optional[str] = None
+    results: list[RetrievalResult] = field(default_factory=list)
+    dense_results: list[RetrievalResult] | None = None
+    sparse_results: list[RetrievalResult] | None = None
+    dense_error: str | None = None
+    sparse_error: str | None = None
     used_fallback: bool = False
-    processed_query: Optional[ProcessedQuery] = None
+    processed_query: ProcessedQuery | None = None
 
 
 class HybridSearch:
     """Hybrid Search Engine combining Dense and Sparse retrieval.
-    
+
     This class orchestrates the complete hybrid search flow:
     1. Query Processing: Extract keywords and filters from raw query
     2. Parallel Retrieval: Run Dense and Sparse retrievers concurrently
     3. Fusion: Combine results using RRF algorithm
     4. Post-Filtering: Apply metadata filters if specified
-    
+
     Design Principles Applied:
     - Graceful Degradation: If one path fails, use results from the other
     - Pluggable: All components via dependency injection
     - Observable: TraceContext support for debugging
     - Config-Driven: All parameters from settings
-    
+
     Example:
         >>> # Initialize components
         >>> query_processor = QueryProcessor()
         >>> dense_retriever = DenseRetriever(settings, embedding_client, vector_store)
         >>> sparse_retriever = SparseRetriever(settings, bm25_indexer, vector_store)
         >>> fusion = RRFFusion(k=60)
-        >>> 
+        >>>
         >>> # Create HybridSearch
         >>> hybrid = HybridSearch(
         ...     settings=settings,
@@ -131,22 +131,22 @@ class HybridSearch:
         ...     sparse_retriever=sparse_retriever,
         ...     fusion=fusion
         ... )
-        >>> 
+        >>>
         >>> # Search
         >>> results = hybrid.search("如何配置 Azure OpenAI？", top_k=10)
     """
-    
+
     def __init__(
         self,
-        settings: Optional[Settings] = None,
-        query_processor: Optional[QueryProcessor] = None,
-        dense_retriever: Optional[DenseRetriever] = None,
-        sparse_retriever: Optional[SparseRetriever] = None,
-        fusion: Optional[RRFFusion] = None,
-        config: Optional[HybridSearchConfig] = None,
+        settings: Settings | None = None,
+        query_processor: QueryProcessor | None = None,
+        dense_retriever: DenseRetriever | None = None,
+        sparse_retriever: SparseRetriever | None = None,
+        fusion: RRFFusion | None = None,
+        config: HybridSearchConfig | None = None,
     ) -> None:
         """Initialize HybridSearch with components.
-        
+
         Args:
             settings: Application settings for extracting configuration.
             query_processor: QueryProcessor for preprocessing queries.
@@ -154,7 +154,7 @@ class HybridSearch:
             sparse_retriever: SparseRetriever for keyword search.
             fusion: RRFFusion for combining results.
             config: Optional HybridSearchConfig. If not provided, extracted from settings.
-        
+
         Note:
             At least one of dense_retriever or sparse_retriever must be provided
             for search to function. The search will gracefully degrade if one
@@ -164,32 +164,32 @@ class HybridSearch:
         self.dense_retriever = dense_retriever
         self.sparse_retriever = sparse_retriever
         self.fusion = fusion
-        
+
         # Extract config from settings or use provided/default
         self.config = config or self._extract_config(settings)
-        
+
         logger.info(
             f"HybridSearch initialized: dense={self.dense_retriever is not None}, "
             f"sparse={self.sparse_retriever is not None}, "
             f"config={self.config}"
         )
-    
-    def _extract_config(self, settings: Optional[Settings]) -> HybridSearchConfig:
+
+    def _extract_config(self, settings: Settings | None) -> HybridSearchConfig:
         """Extract HybridSearchConfig from Settings.
-        
+
         Args:
             settings: Application settings object.
-            
+
         Returns:
             HybridSearchConfig with values from settings or defaults.
         """
         if settings is None:
             return HybridSearchConfig()
-        
+
         retrieval_config = getattr(settings, 'retrieval', None)
         if retrieval_config is None:
             return HybridSearchConfig()
-        
+
         return HybridSearchConfig(
             dense_top_k=getattr(retrieval_config, 'dense_top_k', 20),
             sparse_top_k=getattr(retrieval_config, 'sparse_top_k', 20),
@@ -199,32 +199,32 @@ class HybridSearch:
             parallel_retrieval=True,
             metadata_filter_post=True,
         )
-    
+
     def search(
         self,
         query: str,
-        top_k: Optional[int] = None,
-        filters: Optional[Dict[str, Any]] = None,
-        trace: Optional[Any] = None,
+        top_k: int | None = None,
+        filters: dict[str, Any] | None = None,
+        trace: Any | None = None,
         return_details: bool = False,
-    ) -> List[RetrievalResult] | HybridSearchResult:
+    ) -> list[RetrievalResult] | HybridSearchResult:
         """Perform hybrid search combining Dense and Sparse retrieval.
-        
+
         Args:
             query: The search query string.
             top_k: Maximum number of results to return. If None, uses config.fusion_top_k.
             filters: Optional metadata filters (e.g., {"collection": "docs"}).
             trace: Optional TraceContext for observability.
             return_details: If True, return HybridSearchResult with debug info.
-        
+
         Returns:
             If return_details=False: List of RetrievalResult sorted by relevance.
             If return_details=True: HybridSearchResult with full details.
-        
+
         Raises:
             ValueError: If query is empty or invalid.
             RuntimeError: If both retrievers fail or are unavailable.
-        
+
         Example:
             >>> results = hybrid.search("Azure configuration", top_k=5)
             >>> for r in results:
@@ -233,11 +233,11 @@ class HybridSearch:
         # Validate query
         if not query or not query.strip():
             raise ValueError("Query cannot be empty or whitespace-only")
-        
+
         effective_top_k = top_k if top_k is not None else self.config.fusion_top_k
-        
+
         logger.debug(f"HybridSearch: query='{query[:50]}...', top_k={effective_top_k}")
-        
+
         # Step 1: Process query
         _t0 = time.monotonic()
         processed_query = self._process_query(query)
@@ -248,17 +248,17 @@ class HybridSearch:
                 "original_query": query,
                 "keywords": processed_query.keywords,
             }, elapsed_ms=_elapsed)
-        
+
         # Merge explicit filters with query-extracted filters
         merged_filters = self._merge_filters(processed_query.filters, filters)
-        
+
         # Step 2: Run retrievals
         dense_results, sparse_results, dense_error, sparse_error = self._run_retrievals(
             processed_query=processed_query,
             filters=merged_filters,
             trace=trace,
         )
-        
+
         # Step 3: Handle fallback scenarios
         used_fallback = False
         if dense_error and sparse_error:
@@ -288,16 +288,16 @@ class HybridSearch:
                 top_k=effective_top_k,
                 trace=trace,
             )
-        
+
         # Step 5: Apply post-fusion metadata filters (if any)
         if merged_filters and self.config.metadata_filter_post:
             fused_results = self._apply_metadata_filters(fused_results, merged_filters)
-        
+
         # Step 6: Limit to top_k
         final_results = fused_results[:effective_top_k]
-        
+
         logger.debug(f"HybridSearch: returning {len(final_results)} results")
-        
+
         if return_details:
             return HybridSearchResult(
                 results=final_results,
@@ -308,15 +308,15 @@ class HybridSearch:
                 used_fallback=used_fallback,
                 processed_query=processed_query,
             )
-        
+
         return final_results
-    
+
     def _process_query(self, query: str) -> ProcessedQuery:
         """Process raw query using QueryProcessor.
-        
+
         Args:
             query: Raw query string.
-            
+
         Returns:
             ProcessedQuery with keywords and filters.
         """
@@ -329,22 +329,22 @@ class HybridSearch:
                 keywords=keywords,
                 filters={},
             )
-        
+
         return self.query_processor.process(query)
-    
+
     def _merge_filters(
         self,
-        query_filters: Dict[str, Any],
-        explicit_filters: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        query_filters: dict[str, Any],
+        explicit_filters: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         """Merge query-extracted filters with explicit filters.
-        
+
         Explicit filters take precedence over query-extracted filters.
-        
+
         Args:
             query_filters: Filters extracted from query by QueryProcessor.
             explicit_filters: Filters passed explicitly to search().
-            
+
         Returns:
             Merged filter dictionary.
         """
@@ -352,53 +352,53 @@ class HybridSearch:
         if explicit_filters:
             merged.update(explicit_filters)
         return merged
-    
+
     def _run_retrievals(
         self,
         processed_query: ProcessedQuery,
-        filters: Optional[Dict[str, Any]],
-        trace: Optional[Any],
-    ) -> Tuple[
-        Optional[List[RetrievalResult]],
-        Optional[List[RetrievalResult]],
-        Optional[str],
-        Optional[str],
+        filters: dict[str, Any] | None,
+        trace: Any | None,
+    ) -> tuple[
+        list[RetrievalResult] | None,
+        list[RetrievalResult] | None,
+        str | None,
+        str | None,
     ]:
         """Run Dense and Sparse retrievals.
-        
+
         Runs in parallel if configured, otherwise sequentially.
-        
+
         Args:
             processed_query: The processed query with keywords.
             filters: Merged filters to apply.
             trace: Optional TraceContext.
-            
+
         Returns:
             Tuple of (dense_results, sparse_results, dense_error, sparse_error).
         """
-        dense_results: Optional[List[RetrievalResult]] = None
-        sparse_results: Optional[List[RetrievalResult]] = None
-        dense_error: Optional[str] = None
-        sparse_error: Optional[str] = None
-        
+        dense_results: list[RetrievalResult] | None = None
+        sparse_results: list[RetrievalResult] | None = None
+        dense_error: str | None = None
+        sparse_error: str | None = None
+
         # Determine what to run
         run_dense = (
-            self.config.enable_dense 
+            self.config.enable_dense
             and self.dense_retriever is not None
         )
         run_sparse = (
-            self.config.enable_sparse 
+            self.config.enable_sparse
             and self.sparse_retriever is not None
             and processed_query.keywords  # Need keywords for sparse
         )
-        
+
         if not run_dense and not run_sparse:
             # Nothing to run
             if self.dense_retriever is None and self.sparse_retriever is None:
                 dense_error = "No retriever configured"
                 sparse_error = "No retriever configured"
             return dense_results, sparse_results, dense_error, sparse_error
-        
+
         if self.config.parallel_retrieval and run_dense and run_sparse:
             # Run in parallel
             dense_results, sparse_results, dense_error, sparse_error = (
@@ -410,43 +410,43 @@ class HybridSearch:
                 dense_results, dense_error = self._run_dense_retrieval(
                     processed_query.original_query, filters, trace
                 )
-            
+
             if run_sparse:
                 sparse_results, sparse_error = self._run_sparse_retrieval(
                     processed_query.keywords, filters, trace
                 )
-        
+
         return dense_results, sparse_results, dense_error, sparse_error
-    
+
     def _run_parallel_retrievals(
         self,
         processed_query: ProcessedQuery,
-        filters: Optional[Dict[str, Any]],
-        trace: Optional[Any],
-    ) -> Tuple[
-        Optional[List[RetrievalResult]],
-        Optional[List[RetrievalResult]],
-        Optional[str],
-        Optional[str],
+        filters: dict[str, Any] | None,
+        trace: Any | None,
+    ) -> tuple[
+        list[RetrievalResult] | None,
+        list[RetrievalResult] | None,
+        str | None,
+        str | None,
     ]:
         """Run Dense and Sparse retrievals in parallel using ThreadPoolExecutor.
-        
+
         Args:
             processed_query: The processed query.
             filters: Filters to apply.
             trace: Optional TraceContext.
-            
+
         Returns:
             Tuple of (dense_results, sparse_results, dense_error, sparse_error).
         """
-        dense_results: Optional[List[RetrievalResult]] = None
-        sparse_results: Optional[List[RetrievalResult]] = None
-        dense_error: Optional[str] = None
-        sparse_error: Optional[str] = None
-        
+        dense_results: list[RetrievalResult] | None = None
+        sparse_results: list[RetrievalResult] | None = None
+        dense_error: str | None = None
+        sparse_error: str | None = None
+
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = {}
-            
+
             # Submit dense retrieval
             futures['dense'] = executor.submit(
                 self._run_dense_retrieval,
@@ -454,7 +454,7 @@ class HybridSearch:
                 filters,
                 trace,
             )
-            
+
             # Submit sparse retrieval
             futures['sparse'] = executor.submit(
                 self._run_sparse_retrieval,
@@ -462,7 +462,7 @@ class HybridSearch:
                 filters,
                 trace,
             )
-            
+
             # Collect results
             for name, future in futures.items():
                 try:
@@ -480,28 +480,28 @@ class HybridSearch:
                         dense_error = error_msg
                     else:
                         sparse_error = error_msg
-        
+
         return dense_results, sparse_results, dense_error, sparse_error
-    
+
     def _run_dense_retrieval(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]],
-        trace: Optional[Any],
-    ) -> Tuple[Optional[List[RetrievalResult]], Optional[str]]:
+        filters: dict[str, Any] | None,
+        trace: Any | None,
+    ) -> tuple[list[RetrievalResult] | None, str | None]:
         """Run dense retrieval with error handling.
-        
+
         Args:
             query: Original query string.
             filters: Filters to apply.
             trace: Optional TraceContext.
-            
+
         Returns:
             Tuple of (results, error). If successful, error is None.
         """
         if self.dense_retriever is None:
             return None, "Dense retriever not configured"
-        
+
         try:
             _t0 = time.monotonic()
             results = self.dense_retriever.retrieve(
@@ -530,33 +530,33 @@ class HybridSearch:
                     "result_count": 0,
                 })
             return None, error_msg
-    
+
     def _run_sparse_retrieval(
         self,
-        keywords: List[str],
-        filters: Optional[Dict[str, Any]],
-        trace: Optional[Any],
-    ) -> Tuple[Optional[List[RetrievalResult]], Optional[str]]:
+        keywords: list[str],
+        filters: dict[str, Any] | None,
+        trace: Any | None,
+    ) -> tuple[list[RetrievalResult] | None, str | None]:
         """Run sparse retrieval with error handling.
-        
+
         Args:
             keywords: List of keywords from QueryProcessor.
             filters: Filters to apply.
             trace: Optional TraceContext.
-            
+
         Returns:
             Tuple of (results, error). If successful, error is None.
         """
         if self.sparse_retriever is None:
             return None, "Sparse retriever not configured"
-        
+
         if not keywords:
             return [], None  # No keywords, return empty (not an error)
-        
+
         try:
             # Extract collection from filters if present
             collection = filters.get('collection') if filters else None
-            
+
             _t0 = time.monotonic()
             results = self.sparse_retriever.retrieve(
                 keywords=keywords,
@@ -578,22 +578,22 @@ class HybridSearch:
             error_msg = f"Sparse retrieval error: {e}"
             logger.error(error_msg)
             return None, error_msg
-    
+
     def _fuse_results(
         self,
-        dense_results: List[RetrievalResult],
-        sparse_results: List[RetrievalResult],
+        dense_results: list[RetrievalResult],
+        sparse_results: list[RetrievalResult],
         top_k: int,
-        trace: Optional[Any],
-    ) -> List[RetrievalResult]:
+        trace: Any | None,
+    ) -> list[RetrievalResult]:
         """Fuse Dense and Sparse results using RRF.
-        
+
         Args:
             dense_results: Results from dense retrieval.
             sparse_results: Results from sparse retrieval.
             top_k: Number of results to return after fusion.
             trace: Optional TraceContext.
-            
+
         Returns:
             Fused and ranked list of RetrievalResults.
         """
@@ -601,21 +601,21 @@ class HybridSearch:
             # Fallback: interleave results (simple round-robin)
             logger.warning("No fusion configured, using simple interleave")
             return self._interleave_results(dense_results, sparse_results, top_k)
-        
+
         # Build ranking lists for RRF
         ranking_lists = []
         if dense_results:
             ranking_lists.append(dense_results)
         if sparse_results:
             ranking_lists.append(sparse_results)
-        
+
         if not ranking_lists:
             return []
-        
+
         if len(ranking_lists) == 1:
             # Only one source, no fusion needed
             return ranking_lists[0][:top_k]
-        
+
         _t0 = time.monotonic()
         fused = self.fusion.fuse(
             ranking_lists=ranking_lists,
@@ -632,26 +632,26 @@ class HybridSearch:
                 "chunks": _snapshot_results(fused),
             }, elapsed_ms=_elapsed)
         return fused
-    
+
     def _interleave_results(
         self,
-        dense_results: List[RetrievalResult],
-        sparse_results: List[RetrievalResult],
+        dense_results: list[RetrievalResult],
+        sparse_results: list[RetrievalResult],
         top_k: int,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """Simple interleave fallback when no fusion is configured.
-        
+
         Args:
             dense_results: Results from dense retrieval.
             sparse_results: Results from sparse retrieval.
             top_k: Maximum results to return.
-            
+
         Returns:
             Interleaved results, deduped by chunk_id.
         """
         seen_ids = set()
         interleaved = []
-        
+
         d_idx, s_idx = 0, 0
         while len(interleaved) < top_k and (d_idx < len(dense_results) or s_idx < len(sparse_results)):
             # Alternate between dense and sparse
@@ -661,57 +661,57 @@ class HybridSearch:
                 if r.chunk_id not in seen_ids:
                     seen_ids.add(r.chunk_id)
                     interleaved.append(r)
-            
+
             if len(interleaved) >= top_k:
                 break
-            
+
             if s_idx < len(sparse_results):
                 r = sparse_results[s_idx]
                 s_idx += 1
                 if r.chunk_id not in seen_ids:
                     seen_ids.add(r.chunk_id)
                     interleaved.append(r)
-        
+
         return interleaved
-    
+
     def _apply_metadata_filters(
         self,
-        results: List[RetrievalResult],
-        filters: Dict[str, Any],
-    ) -> List[RetrievalResult]:
+        results: list[RetrievalResult],
+        filters: dict[str, Any],
+    ) -> list[RetrievalResult]:
         """Apply metadata filters to results (post-fusion fallback).
-        
+
         This is a backup filter mechanism for cases where the underlying
         storage doesn't fully support the filter syntax.
-        
+
         Args:
             results: Results to filter.
             filters: Filter conditions to apply.
-            
+
         Returns:
             Filtered results.
         """
         if not filters:
             return results
-        
+
         filtered = []
         for result in results:
             if self._matches_filters(result.metadata, filters):
                 filtered.append(result)
-        
+
         return filtered
-    
+
     def _matches_filters(
         self,
-        metadata: Dict[str, Any],
-        filters: Dict[str, Any],
+        metadata: dict[str, Any],
+        filters: dict[str, Any],
     ) -> bool:
         """Check if metadata matches all filter conditions.
-        
+
         Args:
             metadata: Result metadata.
             filters: Filter conditions.
-            
+
         Returns:
             True if all filters match, False otherwise.
         """
@@ -719,7 +719,7 @@ class HybridSearch:
             if key == "collection":
                 # Collection might be in different metadata keys
                 meta_collection = (
-                    metadata.get("collection") 
+                    metadata.get("collection")
                     or metadata.get("source_collection")
                 )
                 if meta_collection != value:
@@ -743,32 +743,32 @@ class HybridSearch:
                 # Generic exact match
                 if metadata.get(key) != value:
                     return False
-        
+
         return True
 
 
 def create_hybrid_search(
-    settings: Optional[Settings] = None,
-    query_processor: Optional[QueryProcessor] = None,
-    dense_retriever: Optional[DenseRetriever] = None,
-    sparse_retriever: Optional[SparseRetriever] = None,
-    fusion: Optional[RRFFusion] = None,
+    settings: Settings | None = None,
+    query_processor: QueryProcessor | None = None,
+    dense_retriever: DenseRetriever | None = None,
+    sparse_retriever: SparseRetriever | None = None,
+    fusion: RRFFusion | None = None,
 ) -> HybridSearch:
     """Factory function to create HybridSearch with default components.
-    
+
     This is a convenience function that creates a HybridSearch with
     default RRFFusion if not provided.
-    
+
     Args:
         settings: Application settings.
         query_processor: QueryProcessor instance.
         dense_retriever: DenseRetriever instance.
         sparse_retriever: SparseRetriever instance.
         fusion: RRFFusion instance. If None, creates default with k=60.
-        
+
     Returns:
         Configured HybridSearch instance.
-    
+
     Example:
         >>> hybrid = create_hybrid_search(
         ...     settings=settings,
@@ -786,7 +786,7 @@ def create_hybrid_search(
             if retrieval_config is not None:
                 rrf_k = getattr(retrieval_config, 'rrf_k', 60)
         fusion = RRFFusion(k=rrf_k)
-    
+
     return HybridSearch(
         settings=settings,
         query_processor=query_processor,

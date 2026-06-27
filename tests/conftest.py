@@ -17,7 +17,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 @pytest.fixture
 def project_root() -> Path:
     """Return the project root directory path.
-    
+
     Returns:
         Path to the project root directory.
     """
@@ -27,10 +27,10 @@ def project_root() -> Path:
 @pytest.fixture
 def sample_documents_dir(project_root: Path) -> Path:
     """Return the sample documents directory path.
-    
+
     Args:
         project_root: The project root directory path.
-        
+
     Returns:
         Path to the sample documents directory.
     """
@@ -40,10 +40,10 @@ def sample_documents_dir(project_root: Path) -> Path:
 @pytest.fixture
 def config_dir(project_root: Path) -> Path:
     """Return the config directory path.
-    
+
     Args:
         project_root: The project root directory path.
-        
+
     Returns:
         Path to the config directory.
     """

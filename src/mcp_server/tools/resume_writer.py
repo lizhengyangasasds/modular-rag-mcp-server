@@ -14,14 +14,15 @@ Usage via MCP:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
-from src.libs.llm import LLMFactory, BaseLLM
+
+from src.libs.llm import BaseLLM, LLMFactory
 
 if TYPE_CHECKING:
-    from src.mcp_server.protocol_handler import ProtocolHandler
     from src.core.settings import Settings
+    from src.mcp_server.protocol_handler import ProtocolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ Parameters:
 - project_description: Description of the project to highlight
 """
 
-TOOL_INPUT_SCHEMA: Dict[str, Any] = {
+TOOL_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "target_position": {
@@ -62,7 +63,7 @@ TOOL_INPUT_SCHEMA: Dict[str, Any] = {
 class ResumeWriterTool:
     """MCP Tool for resume writing."""
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings
 
     @property
@@ -79,8 +80,8 @@ class ResumeWriterTool:
     def generate_resume(
         self,
         target_position: str,
-        background: Optional[str] = None,
-        project_description: Optional[str] = None,
+        background: str | None = None,
+        project_description: str | None = None,
     ) -> str:
         """Generate resume content.
 
@@ -155,8 +156,8 @@ class ResumeWriterTool:
     async def execute(
         self,
         target_position: str,
-        background: Optional[str] = None,
-        project_description: Optional[str] = None,
+        background: str | None = None,
+        project_description: str | None = None,
     ) -> types.CallToolResult:
         """Execute the resume_writer tool."""
         import asyncio
@@ -194,8 +195,8 @@ def register_tool(protocol_handler: ProtocolHandler) -> None:
 
     async def handler(
         target_position: str,
-        background: Optional[str] = None,
-        project_description: Optional[str] = None,
+        background: str | None = None,
+        project_description: str | None = None,
     ) -> types.CallToolResult:
         return await tool.execute(
             target_position=target_position,

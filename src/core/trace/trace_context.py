@@ -8,7 +8,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 
 @dataclass
@@ -27,22 +27,22 @@ class TraceContext:
     trace_type: Literal["query", "ingestion"] = "query"
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    finished_at: Optional[str] = field(default=None)
-    stages: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    finished_at: str | None = field(default=None)
+    stages: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     # internal monotonic clock for accurate elapsed calculation
     _start_mono: float = field(default_factory=time.monotonic, repr=False)
-    _finish_mono: Optional[float] = field(default=None, repr=False)
-    _stage_timings: Dict[str, float] = field(default_factory=dict, repr=False)
+    _finish_mono: float | None = field(default=None, repr=False)
+    _stage_timings: dict[str, float] = field(default_factory=dict, repr=False)
 
     # ---- recording ---------------------------------------------------
 
     def record_stage(
         self,
         stage_name: str,
-        data: Dict[str, Any],
-        elapsed_ms: Optional[float] = None,
+        data: dict[str, Any],
+        elapsed_ms: float | None = None,
     ) -> None:
         """Record data from a pipeline stage.
 
@@ -53,7 +53,7 @@ class TraceContext:
                 caller should measure externally, or leave it to the
                 ``stage_timer`` context-manager.
         """
-        entry: Dict[str, Any] = {
+        entry: dict[str, Any] = {
             "stage": stage_name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": data,
@@ -72,7 +72,7 @@ class TraceContext:
 
     # ---- timing helpers -----------------------------------------------
 
-    def elapsed_ms(self, stage_name: Optional[str] = None) -> float:
+    def elapsed_ms(self, stage_name: str | None = None) -> float:
         """Return elapsed time in milliseconds.
 
         Args:
@@ -97,7 +97,7 @@ class TraceContext:
 
     # ---- serialisation ------------------------------------------------
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialise the trace to a plain dict suitable for ``json.dumps``.
 
         Returns:
@@ -115,7 +115,7 @@ class TraceContext:
 
     # ---- backwards-compat helper used in C5 / C6 -----------------------
 
-    def get_stage_data(self, stage_name: str) -> Optional[Dict[str, Any]]:
+    def get_stage_data(self, stage_name: str) -> dict[str, Any] | None:
         """Retrieve recorded data for a specific stage.
 
         Searches stages list (last-write-wins for duplicate names).

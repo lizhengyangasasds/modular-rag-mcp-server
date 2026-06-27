@@ -8,47 +8,47 @@ It forms the Dense route in the Hybrid Search Engine.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from src.core.types import RetrievalResult
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
     from src.libs.embedding.base_embedding import BaseEmbedding
-    from src.libs.vector_store.base_vector_store import BaseVectorStore
     from src.libs.redis.embedding_cache import EmbeddingCache
+    from src.libs.vector_store.base_vector_store import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
 
 class DenseRetriever:
     """Dense retriever using embedding-based semantic search.
-    
+
     This class performs semantic retrieval by:
     1. Embedding the query using the configured embedding client
     2. Querying the vector store for similar vectors
     3. Returning normalized RetrievalResult objects
-    
+
     Design Principles Applied:
     - Pluggable: Accepts embedding_client and vector_store via dependency injection.
     - Config-Driven: Default top_k read from settings.retrieval.dense_top_k.
     - Observable: Accepts optional TraceContext for observability integration.
     - Fail-Fast: Validates inputs early with clear error messages.
     - Type-Safe: Returns standardized RetrievalResult objects.
-    
+
     Attributes:
         embedding_client: The embedding provider for query vectorization.
         vector_store: The vector store for similarity search.
         default_top_k: Default number of results to return.
-    
+
     Example:
         >>> from src.libs.embedding.embedding_factory import EmbeddingFactory
         >>> from src.libs.vector_store.vector_store_factory import VectorStoreFactory
-        >>> 
+        >>>
         >>> settings = Settings.load('config/settings.yaml')
         >>> embedding_client = EmbeddingFactory.create(settings)
         >>> vector_store = VectorStoreFactory.create(settings)
-        >>> 
+        >>>
         >>> retriever = DenseRetriever(
         ...     settings=settings,
         ...     embedding_client=embedding_client,
@@ -56,17 +56,17 @@ class DenseRetriever:
         ... )
         >>> results = retriever.retrieve("What is RAG?", top_k=5)
     """
-    
+
     def __init__(
         self,
-        settings: Optional[Settings] = None,
-        embedding_client: Optional[BaseEmbedding] = None,
-        vector_store: Optional[BaseVectorStore] = None,
+        settings: Settings | None = None,
+        embedding_client: BaseEmbedding | None = None,
+        vector_store: BaseVectorStore | None = None,
         default_top_k: int = 10,
-        embedding_cache: Optional["EmbeddingCache"] = None,
+        embedding_cache: EmbeddingCache | None = None,
     ) -> None:
         """Initialize DenseRetriever with dependencies.
-        
+
         Args:
             settings: Application settings. Used to extract default_top_k if not provided.
             embedding_client: Embedding provider for query vectorization.
@@ -75,10 +75,10 @@ class DenseRetriever:
                           Required for actual retrieval operations.
             default_top_k: Default number of results to return (default: 10).
                            Can be overridden from settings.retrieval.dense_top_k.
-        
+
         Raises:
             ValueError: If embedding_client or vector_store is None when required.
-        
+
         Note:
             Dependencies can be injected for testing (with mocks) or for
             production use (with real implementations from factories).
@@ -100,33 +100,33 @@ class DenseRetriever:
             f"DenseRetriever initialized with default_top_k={self.default_top_k}"
         )
 
-    def set_embedding_cache(self, cache: "EmbeddingCache") -> None:
+    def set_embedding_cache(self, cache: EmbeddingCache) -> None:
         self._embedding_cache = cache
-    
+
     def retrieve(
         self,
         query: str,
-        top_k: Optional[int] = None,
-        filters: Optional[Dict[str, Any]] = None,
-        trace: Optional[Any] = None,
-    ) -> List[RetrievalResult]:
+        top_k: int | None = None,
+        filters: dict[str, Any] | None = None,
+        trace: Any | None = None,
+    ) -> list[RetrievalResult]:
         """Retrieve semantically similar chunks for a query.
-        
+
         Args:
             query: The search query string. Must not be empty.
             top_k: Maximum number of results to return. If None, uses default_top_k.
             filters: Optional metadata filters (e.g., {"collection": "api-docs"}).
             trace: Optional TraceContext for observability (reserved for Stage F).
-        
+
         Returns:
             List of RetrievalResult objects, sorted by similarity (descending).
             Each result contains chunk_id, score, text, and metadata.
-        
+
         Raises:
             ValueError: If query is empty or invalid.
             RuntimeError: If embedding_client or vector_store is not configured,
                           or if the retrieval operation fails.
-        
+
         Example:
             >>> results = retriever.retrieve("How to configure Azure OpenAI?")
             >>> for result in results:
@@ -135,12 +135,12 @@ class DenseRetriever:
         # Validate inputs
         self._validate_query(query)
         self._validate_dependencies()
-        
+
         # Use default top_k if not specified
         effective_top_k = top_k if top_k is not None else self.default_top_k
-        
+
         logger.debug(f"Retrieving for query='{query[:50]}...', top_k={effective_top_k}")
-        
+
         # Step 1: Embed the query (check cache first)
         try:
             # Check embedding cache for this exact query text
@@ -162,7 +162,7 @@ class DenseRetriever:
                 f"Failed to embed query: {e}. "
                 "Check embedding client configuration and connectivity."
             ) from e
-        
+
         # Step 2: Query the vector store
         try:
             raw_results = self.vector_store.query(
@@ -176,19 +176,19 @@ class DenseRetriever:
                 f"Failed to query vector store: {e}. "
                 "Check vector store configuration and data availability."
             ) from e
-        
+
         # Step 3: Transform to RetrievalResult objects
         results = self._transform_results(raw_results)
-        
+
         logger.debug(f"Retrieved {len(results)} results for query")
         return results
-    
+
     def _validate_query(self, query: str) -> None:
         """Validate the query string.
-        
+
         Args:
             query: Query string to validate.
-        
+
         Raises:
             ValueError: If query is empty or not a string.
         """
@@ -198,10 +198,10 @@ class DenseRetriever:
             )
         if not query.strip():
             raise ValueError("Query cannot be empty or whitespace-only")
-    
+
     def _validate_dependencies(self) -> None:
         """Validate that required dependencies are configured.
-        
+
         Raises:
             RuntimeError: If embedding_client or vector_store is None.
         """
@@ -215,17 +215,17 @@ class DenseRetriever:
                 "DenseRetriever requires a vector_store. "
                 "Provide one during initialization or via setter."
             )
-    
+
     def _transform_results(
         self,
-        raw_results: List[Dict[str, Any]],
-    ) -> List[RetrievalResult]:
+        raw_results: list[dict[str, Any]],
+    ) -> list[RetrievalResult]:
         """Transform raw vector store results to RetrievalResult objects.
-        
+
         Args:
             raw_results: Raw results from vector store query.
                          Each result should have: id, score, text, metadata.
-        
+
         Returns:
             List of RetrievalResult objects.
         """
@@ -245,15 +245,15 @@ class DenseRetriever:
                     "Skipping this result."
                 )
                 continue
-        
+
         return results
 
 
 def create_dense_retriever(
     settings: Settings,
-    embedding_client: Optional[BaseEmbedding] = None,
-    vector_store: Optional[BaseVectorStore] = None,
-    embedding_cache: Optional["EmbeddingCache"] = None,
+    embedding_client: BaseEmbedding | None = None,
+    vector_store: BaseVectorStore | None = None,
+    embedding_cache: EmbeddingCache | None = None,
 ) -> DenseRetriever:
     """Factory function to create a DenseRetriever with optional dependency injection.
 

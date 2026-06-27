@@ -14,7 +14,8 @@ Design Principles:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from src.libs.evaluator.base_evaluator import BaseEvaluator
 
@@ -64,7 +65,7 @@ class RagasEvaluator(BaseEvaluator):
     def __init__(
         self,
         settings: Any = None,
-        metrics: Optional[Sequence[str]] = None,
+        metrics: Sequence[str] | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize RagasEvaluator.
@@ -104,12 +105,12 @@ class RagasEvaluator(BaseEvaluator):
     def evaluate(
         self,
         query: str,
-        retrieved_chunks: List[Any],
-        generated_answer: Optional[str] = None,
-        ground_truth: Optional[Any] = None,
-        trace: Optional[Any] = None,
+        retrieved_chunks: list[Any],
+        generated_answer: str | None = None,
+        ground_truth: Any | None = None,
+        trace: Any | None = None,
         **kwargs: Any,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Evaluate RAG quality using Ragas LLM-as-Judge metrics.
 
         Args:
@@ -150,9 +151,9 @@ class RagasEvaluator(BaseEvaluator):
     def _run_ragas(
         self,
         query: str,
-        contexts: List[str],
+        contexts: list[str],
         answer: str,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Execute Ragas collections metrics and return normalised scores.
 
         Ragas 0.4+ collections metrics use per-metric ``score()`` instead of
@@ -161,15 +162,15 @@ class RagasEvaluator(BaseEvaluator):
         - AnswerRelevancy: (user_input, response)
         """
         from ragas.metrics.collections import (
-            Faithfulness,
             AnswerRelevancy,
             ContextPrecisionWithoutReference,
+            Faithfulness,
         )
 
         # Build LLM / Embedding wrappers from settings
         llm, embeddings = self._build_wrappers()
 
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
 
         for metric_name in self._metric_names:
             if metric_name == FAITHFULNESS:
@@ -202,8 +203,8 @@ class RagasEvaluator(BaseEvaluator):
             Tuple of (llm_wrapper, embeddings_wrapper).
         """
         from openai import AsyncAzureOpenAI, AsyncOpenAI
-        from ragas.llms import llm_factory
         from ragas.embeddings import OpenAIEmbeddings
+        from ragas.llms import llm_factory
 
         if self.settings is None:
             raise ValueError("Settings required to create LLM for Ragas evaluation")
@@ -265,7 +266,7 @@ class RagasEvaluator(BaseEvaluator):
 
         return llm, embeddings
 
-    def _extract_texts(self, chunks: List[Any]) -> List[str]:
+    def _extract_texts(self, chunks: list[Any]) -> list[str]:
         """Extract text strings from various chunk representations.
 
         Args:
@@ -274,7 +275,7 @@ class RagasEvaluator(BaseEvaluator):
         Returns:
             List of text strings.
         """
-        texts: List[str] = []
+        texts: list[str] = []
         for chunk in chunks:
             if isinstance(chunk, str):
                 texts.append(chunk)
@@ -287,7 +288,7 @@ class RagasEvaluator(BaseEvaluator):
                 texts.append(str(chunk))
         return texts
 
-    def _metrics_from_settings(self, settings: Any) -> List[str]:
+    def _metrics_from_settings(self, settings: Any) -> list[str]:
         """Extract metrics list from settings if available."""
         if settings is None:
             return []

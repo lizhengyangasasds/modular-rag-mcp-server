@@ -13,8 +13,7 @@ and deterministic.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch, PropertyMock
-from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -143,7 +142,7 @@ class TestRagasEvaluatorTextExtraction:
 class TestRagasEvaluatorEvaluate:
     """Tests for evaluate() with mocked Ragas backend."""
 
-    def _make_mock_ragas_result(self, scores: Dict[str, float]) -> MagicMock:
+    def _make_mock_ragas_result(self, scores: dict[str, float]) -> MagicMock:
         """Create a mock ragas evaluation result."""
         import pandas as pd
 
