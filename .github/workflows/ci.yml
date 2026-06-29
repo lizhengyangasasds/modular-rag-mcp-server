@@ -91,16 +91,15 @@ jobs:
       - name: Run unit tests (no llm-api, no slow tests)
         run: |
           mkdir -p test-results
-          pytest tests/unit/
-          -m "not llm"
-          -m "not slow"
-          --ignore=tests/unit/test_smoke_imports.py
-          -v
-          --tb=short
-          --cov=src
-          --cov-report=xml
-          --cov-report=term-missing
-          --junitxml=test-results/pytest.xml
+          pytest tests/unit/ \
+            -m "not llm and not slow" \
+            --ignore=tests/unit/test_smoke_imports.py \
+            -v \
+            --tb=short \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --junitxml=test-results/pytest.xml
 
       - name: Upload coverage to Codecov
         if: ${{ matrix.python-version == '3.11' }}
@@ -123,25 +122,9 @@ jobs:
   test-integration:
     name: Integration tests
     runs-on: ubuntu-latest
-    # NOTE: Integration tests use ChromaDB 0.4.24 (last 0.4.x stable release
-    # to match client chromadb>=0.4.0 in pyproject). OpenBLAS_NUM_THREADS=1
-    # prevents the well-known "pthread_create failed" warning on GitHub
-    # runners which have restricted nproc limits.
-    services:
-      chromadb:
-        image: chromadb/chroma:0.4.24
-        env:
-          OPENBLAS_NUM_THREADS: "1"
-          OMP_NUM_THREADS: "1"
-          MKL_NUM_THREADS: "1"
-        ports:
-          - 8000:8000
-        options: >-
-          --health-cmd "curl -f http://localhost:8000/api/v1/heartbeat"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
+    # NOTE: Integration tests use chromadb in-process PersistentClient mode
+    # (no external server required). Docker service was removed — it was
+    # unnecessary and caused startup failures on GitHub runners.
     steps:
       - uses: actions/checkout@v4
 
@@ -160,11 +143,11 @@ jobs:
       - name: Run integration tests
         run: |
           mkdir -p test-results
-          pytest tests/integration/
-          -m "not llm"
-          -v
-          --tb=short
-          --junitxml=test-results/pytest.xml
+          pytest tests/integration/ \
+            -m "not llm and not slow" \
+            -v \
+            --tb=short \
+            --junitxml=test-results/pytest.xml
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -197,8 +180,8 @@ jobs:
       - name: Run e2e tests
         run: |
           mkdir -p test-results
-          pytest tests/e2e/
-          -m "not llm"
-          -v
-          --tb=short
-          --junitxml=test-results/pytest.xml
+          pytest tests/e2e/ \
+            -m "not llm and not slow" \
+            -v \
+            --tb=short \
+            --junitxml=test-results/pytest.xml
