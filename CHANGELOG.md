@@ -182,3 +182,43 @@ so the rest of the codebase stays unaffected.
   one boolean per queued command instead of an empty list, ensuring batch operations
   degrade gracefully without errors.
 - `QueryKnowledgeHubTool.execute()`: `session_id` is now recorded in the trace metadata.
+
+#### `resync_document` MCP Tool (`src/mcp_server/tools/resync_document.py`)
+
+New MCP tool that solves the **document update verification problem**: when a file
+on disk is modified, just running `ingest_documents force=true` is not enough —
+it bypasses the integrity skip but appends new chunks next to the old ones,
+leaving stale, contradictory chunks in the vector store.
+
+`resync_document` orchestrates an explicit **delete-then-ingest-and-verify**
+cycle across all storage backends and returns a structured diff so callers
+can confirm every old chunk was replaced by a fresh one.
+
+- **Workflow** (5 stages):
+  1. Compute new SHA-256 of `source_path`.
+  2. Look up old hash from `FileIntegrity` (by filesystem path).
+  3. If file is unchanged → return `fully_refreshed=True` immediately.
+  4. Delete old chunks from ChromaDB + BM25 + ImageStorage + FileIntegrity
+     keyed by old hash.
+  5. Re-ingest with `IngestionPipeline(force=True)`, then verify the new hash
+     has chunks and the old hash has zero.
+- **Returns** (`ResyncResult.to_dict()`):
+  `file_changed`, `old_hash`, `new_hash`, `chunks_before`, `chunks_deleted`,
+  `chunks_after`, `bm25_before`, `bm25_deleted`, `images_before`,
+  `images_deleted`, `fully_refreshed`, `warnings`, `error`.
+- **`fully_refreshed`** auto-judgment: `chunks_deleted >= chunks_before` AND
+  `chunks_after > 0`. Otherwise warnings flag potential orphan chunks.
+- First-time indexing (no prior history) is treated as `file_changed=True`
+  but skips the deletion step.
+- Registered in `src/mcp_server/protocol_handler.py` alongside `ingest_documents`
+  so MCP clients see it as `tool: "resync_document"`.
+
+#### Tests
+
+- **`tests/unit/test_resync_document_tool.py`** — 12 unit tests covering:
+  unchanged-file short-circuit, delete-then-ingest happy path, partial-delete
+  warning, first-time-ingest path, missing-file error, pipeline failure
+  propagation, `_lookup_old_hash` fallback, and `format_response` output
+  formatting (verified-refreshed vs warning variants via `pytest.mark.parametrize`).
+  Storage backends (ChromaDB / BM25 / FileIntegrity) are mocked for offline
+  execution.

@@ -180,6 +180,21 @@ from src.mcp_server.tools.resume_writer import (
 from src.mcp_server.tools.resume_writer import (
     register_tool as register_resume_writer,
 )
+from src.mcp_server.tools.resync_document import (
+    TOOL_DESCRIPTION as RESYNC_DOCUMENT_DESCRIPTION,
+)
+from src.mcp_server.tools.resync_document import (
+    TOOL_INPUT_SCHEMA as RESYNC_DOCUMENT_SCHEMA,
+)
+from src.mcp_server.tools.resync_document import (
+    TOOL_NAME as RESYNC_DOCUMENT_NAME,
+)
+from src.mcp_server.tools.resync_document import (
+    ResyncDocumentTool,
+)
+from src.mcp_server.tools.resync_document import (
+    register_tool as register_resync_document,
+)
 from src.mcp_server.tools.setup import (
     TOOL_DESCRIPTION as SETUP_DESCRIPTION,
 )
@@ -223,6 +238,12 @@ __all__ = [
     "INGEST_DOCUMENTS_SCHEMA",
     "IngestDocumentsTool",
     "register_ingest_documents",
+
+    "RESYNC_DOCUMENT_NAME",
+    "RESYNC_DOCUMENT_DESCRIPTION",
+    "RESYNC_DOCUMENT_SCHEMA",
+    "ResyncDocumentTool",
+    "register_resync_document",
 
     # Developer Tools
     "AUTO_CODER_NAME",

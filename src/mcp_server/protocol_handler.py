@@ -214,6 +214,10 @@ def _register_default_tools(protocol_handler: ProtocolHandler) -> None:
     from src.mcp_server.tools.ingest_documents import register_tool as register_ingest_tool
     register_ingest_tool(protocol_handler)
 
+    # Import and register resync_document tool
+    from src.mcp_server.tools.resync_document import register_tool as register_resync_tool
+    register_resync_tool(protocol_handler)
+
     # === Developer Tools ===
 
     # Import and register auto_coder tool

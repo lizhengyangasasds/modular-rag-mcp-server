@@ -110,3 +110,11 @@ documents/**/*.pdf
 .env.*.local
 secrets.yaml
 nonexistent_traces.jsonl/
+
+# Temporary build / scratch artifacts (created by Cursor agent tools)
+agent-tools/
+docs/_preview_bg.png
+github_stash.patch
+work_stash.patch
+.git_rebase_todo.txt
+agent_transcripts/

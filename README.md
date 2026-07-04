@@ -169,6 +169,7 @@ python main.py
 | `ingest_documents` | 文档导入向量库 | 增量导入，支持 force 强制重导入 |
 | `list_collections` | 查看集合列表 | 显示集合名 + chunk 数量 |
 | `get_document_summary` | 获取文档摘要 | 按 doc_id 查文档元信息 |
+| `resync_document` | 文档变更后刷新 | 删旧 chunks + 重新导入 + 验证 diff |
 
 ### 扩展工具（辅助能力）
 
@@ -339,6 +340,112 @@ try:
 except DocumentQualityError as e:
     print(f"拒绝摄取：{e}")
     print(f"质量报告：{e.report.to_dict()}")
+```
+
+---
+
+## 文档更新追踪
+
+当一个文档内容被修改后，**仅仅 `ingest_documents force=true` 不够**——它只绕过 integrity skip 逻辑，会把新 chunks 追加到 vector store，**旧 chunks 仍然存在**，导致同一个文档在库里有两套互相冲突的 chunk。
+
+`resync_document` MCP 工具封装了「删旧 → 重新导入 → 验证」三件套，并返回结构化 diff 让你能一眼看出"是否全部 chunks 都刷新了"。
+
+### 工作流
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                    resync_document 工作流                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   1. 读取 source_path 在 disk 上的新内容                              │
+│   2. 从 FileIntegrity 库反查旧 hash（按文件路径）                     │
+│   3. 计算 new_hash = SHA-256(file)                                  │
+│   4. 如果 old_hash == new_hash                                       │
+│        → 直接返回 fully_refreshed=True，跳过所有步骤                  │
+│   5. 否则按 old_hash 删除 4 个存储后端的所有旧 chunks:                │
+│        • ChromaDB    (vector store)                                  │
+│        • BM25        (sparse retriever)                             │
+│        • ImageStorage (images)                                       │
+│        • FileIntegrity (ingestion history)                          │
+│   6. IngestionPipeline.run(path, force=True) 重新导入                │
+│   7. 验证：新 hash 下 chunks > 0 && 旧 hash 下 chunks == 0          │
+│   8. 返回 chunks_before / chunks_deleted / chunks_after /           │
+│        fully_refreshed / warnings                                   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 用法（MCP 客户端）
+
+```json
+{
+  "tool": "resync_document",
+  "arguments": {
+    "source_path": "data/employee_handbook.pdf",
+    "collection": "knowledge_hub"
+  }
+}
+```
+
+返回示例：
+
+```text
+## 文档重同步完成
+
+**文档路径:** data/employee_handbook.pdf
+**集合:** knowledge_hub
+**旧 hash:** `a3f1c9b27d4e8f60...`
+**新 hash:** `b7d92e8f1c4a6500...`
+
+### Chunks 变化
+- 删除前旧 chunks: **42**
+- 实际删除 chunks: **42**
+- 新增 chunks: **38**
+
+### 其他存储
+- BM25 删除: **42** (之前 42)
+- Images 删除: **3** (之前 3)
+
+**✅ 全部 chunks 已刷新完成**
+```
+
+### "全部更新了"的判定标准
+
+工具内部 `fully_refreshed` 字段会自动判定，但你也应该自己核对：
+
+| 检查项 | 期望 |
+|--------|------|
+| `new_hash != old_hash` | 文件确实改了 |
+| `chunks_deleted == chunks_before` | 旧 chunks 真的全删了 |
+| `chunks_after > 0` | 新 chunks 进了 |
+| `chunks_after` 数量合理 | 与文档变化幅度匹配（删的多 → 加的多） |
+
+如果 `chunks_deleted < chunks_before`，`warnings` 字段会提示 `Only N/M old chunks were deleted — possible orphan chunks remain`，需要手工清理。
+
+### 编程接口
+
+```python
+from src.mcp_server.tools.resync_document import ResyncDocumentTool
+
+tool = ResyncDocumentTool()
+result = tool.resync_document(
+    source_path="data/employee_handbook.pdf",
+    collection="knowledge_hub",
+)
+
+print(result.to_dict())
+# {
+#   "file_changed": True,
+#   "old_hash": "a3f1c9b27d4e8f60...",
+#   "new_hash": "b7d92e8f1c4a6500...",
+#   "chunks_before": 42,
+#   "chunks_deleted": 42,
+#   "chunks_after": 38,
+#   "bm25_deleted": 42,
+#   "images_deleted": 3,
+#   "fully_refreshed": True,
+#   "warnings": [],
+# }
 ```
 
 ---
