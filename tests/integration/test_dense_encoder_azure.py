@@ -37,9 +37,17 @@ def azure_embedding(settings):
     All configuration (endpoint, api_key, model) comes from settings.yaml.
     No hardcoded values or environment variable overrides.
     """
-    # Validate Azure configuration is present
-    assert settings.embedding.provider == "azure", \
-        "Integration test requires Azure embedding provider in settings"
+    # Skip the entire module cleanly when settings.yaml is not configured
+    # for Azure. The default dev/test config uses huggingface, which is
+    # intentional — these tests only run when the operator explicitly
+    # switches the embedding provider to "azure" for live integration
+    # validation.
+    if getattr(settings.embedding, "provider", None) != "azure":
+        pytest.skip(
+            "Azure embedding not configured (provider="
+            f"{getattr(settings.embedding, 'provider', None)!r}). "
+            "Set provider: azure in config/settings.yaml to run these tests."
+        )
 
     assert settings.embedding.azure_endpoint, \
         "Azure endpoint must be configured in settings.yaml"
@@ -241,6 +249,12 @@ def test_azure_configuration_is_valid(settings):
     - Dimensions match model (1536 for ada-002)
     - Credentials can be provided via env vars
     """
+    if getattr(settings.embedding, "provider", None) != "azure":
+        pytest.skip(
+            "Azure embedding not configured "
+            f"(provider={settings.embedding.provider!r})"
+        )
+
     assert settings.embedding.provider == "azure", \
         "Provider should be 'azure' for integration tests"
 
@@ -253,6 +267,12 @@ def test_azure_configuration_is_valid(settings):
 
 def test_factory_creates_azure_embedding(settings):
     """Verify that EmbeddingFactory correctly creates Azure provider."""
+    if getattr(settings.embedding, "provider", None) != "azure":
+        pytest.skip(
+            "Azure embedding not configured "
+            f"(provider={settings.embedding.provider!r})"
+        )
+
     embedding = EmbeddingFactory.create(settings)
 
     # Verify it's the correct type (AzureEmbedding)

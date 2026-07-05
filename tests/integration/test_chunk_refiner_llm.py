@@ -86,56 +86,60 @@ def create_settings_for_provider(provider: str) -> Settings:
     Returns:
         Settings object configured for the provider
     """
+    # Build a real Settings instance (not a Mock): ChunkRefiner reads
+    # ``settings.ingestion.chunk_refiner.get('use_llm')`` and several
+    # downstream code paths JSON-serialise the settings. Mock objects break
+    # both — they return truthy auto-attrs and are not JSON-serialisable.
+    from dataclasses import replace
+
+    try:
+        real_settings = load_settings("config/settings.yaml")
+    except Exception as e:  # pragma: no cover - shipped config should load
+        pytest.skip(f"Failed to load settings.yaml: {e}")
+
     if provider == 'azure':
-        # Load real settings from settings.yaml for Azure
+        # Inject Azure credentials from settings.yaml into the env so
+        # AzureLLM picks them up.
         try:
             import yaml
             with open("config/settings.yaml", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-
-            # Inject into environment variables for AzureLLM
             if 'llm' in config and config['llm'].get('provider') == 'azure':
                 os.environ["AZURE_OPENAI_API_KEY"] = config['llm'].get('api_key', '')
                 os.environ["AZURE_OPENAI_ENDPOINT"] = config['llm'].get('azure_endpoint', '')
                 os.environ["ENDPOINT"] = config['llm'].get('azure_endpoint', '')
-
                 os.environ["AZURE_OPENAI_API_VERSION"] = config['llm'].get('api_version', '')
                 os.environ["OPENAI_API_VERSION"] = config['llm'].get('api_version', '')
-
-            real_settings = load_settings("config/settings.yaml")
-
-            # Create a Mock Settings object to allow modification (real settings are frozen)
-            settings = Mock(spec=Settings)
-            # Copy necessary frozen configs
-            settings.llm = real_settings.llm
-            settings.ingestion = Mock()
-            # Enable LLM for chunk refiner
-            settings.ingestion.chunk_refiner = {'use_llm': True}
-            return settings
         except Exception as e:
-            pytest.skip(f"Failed to load settings.yaml or configure Azure: {e}")
+            pytest.skip(f"Failed to configure Azure from settings.yaml: {e}")
 
-    # For non-Azure providers, use environment variables
-    settings = Mock(spec=Settings)
-    settings.ingestion = Mock()
-    settings.ingestion.chunk_refiner = {'use_llm': True}
+    # Enable LLM-driven chunk refinement on a copy of the real settings.
+    cr_cfg = dict(real_settings.ingestion.chunk_refiner or {})
+    cr_cfg["use_llm"] = True
+    new_ingestion = replace(real_settings.ingestion, chunk_refiner=cr_cfg)
 
-    # LLM configuration
-    settings.llm = Mock()
-    settings.llm.provider = provider
-
+    # Override the LLM provider/model/api_key on a copy of real_settings.
     if provider == 'openai':
-        settings.llm.model = "gpt-3.5-turbo"
-        settings.llm.api_key = os.getenv('OPENAI_API_KEY')
-        settings.llm.temperature = 0.3
-        settings.llm.max_tokens = 1000
-
+        new_llm = replace(
+            real_settings.llm,
+            provider="openai",
+            model=os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo"),
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
+            temperature=0.3,
+            max_tokens=1000,
+        )
     elif provider == 'ollama':
-        settings.llm.model = "llama2"
-        settings.llm.base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-        settings.llm.temperature = 0.3
+        new_llm = replace(
+            real_settings.llm,
+            provider="ollama",
+            model="llama2",
+            base_url=os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434'),
+            temperature=0.3,
+        )
+    else:
+        new_llm = real_settings.llm
 
-    return settings
+    return replace(real_settings, llm=new_llm, ingestion=new_ingestion)
 
 
 # Helper function to check provider availability
@@ -164,8 +168,18 @@ def is_provider_available(provider: str) -> tuple[bool, str]:
         return os.getenv(env_var) is not None, env_var
 
     elif provider == 'ollama':
-        # Ollama assumed available if base_url is set or default
-        return True, 'OLLAMA_BASE_URL'
+        # Ollama assumed available if base_url is set; probe the /api/tags
+        # endpoint to confirm the server is actually reachable.
+        base_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+        try:
+            import urllib.error
+            import urllib.request
+            with urllib.request.urlopen(
+                f"{base_url.rstrip('/')}/api/tags", timeout=1
+            ) as resp:
+                return resp.status == 200, 'OLLAMA_BASE_URL'
+        except (urllib.error.URLError, OSError):
+            return False, 'OLLAMA_BASE_URL'
 
     return False, ''
 
@@ -238,14 +252,27 @@ def test_multiple_providers_if_available(provider, env_var, sample_noisy_chunk):
 @pytest.mark.integration
 def test_graceful_fallback_with_invalid_model(sample_noisy_chunk):
     """Test that refiner falls back to rule-based when LLM fails."""
-    # Create settings with intentionally invalid model
-    settings = Mock(spec=Settings)
-    settings.ingestion = Mock()
-    settings.ingestion.chunk_refiner = {'use_llm': True}
-    settings.llm = Mock()
-    settings.llm.provider = 'openai'
-    settings.llm.model = 'nonexistent-model-xyz'
-    settings.llm.api_key = os.getenv('OPENAI_API_KEY', 'fake-key')
+    # Use a real Settings copy (not Mock(spec=Settings)) so the JSON
+    # serialisation paths in downstream code don't trip over a Mock.
+    from dataclasses import replace
+
+    try:
+        real_settings = load_settings("config/settings.yaml")
+    except Exception as e:  # pragma: no cover
+        pytest.skip(f"Failed to load settings.yaml: {e}")
+
+    # An invalid model name forces the LLM call to fail and the refiner
+    # to fall back to its rule-based path.
+    bad_llm = replace(
+        real_settings.llm,
+        provider="openai",
+        model="nonexistent-model-xyz",
+        api_key=os.getenv('OPENAI_API_KEY', 'fake-key'),
+    )
+    cr_cfg = dict(real_settings.ingestion.chunk_refiner or {})
+    cr_cfg["use_llm"] = True
+    new_ingestion = replace(real_settings.ingestion, chunk_refiner=cr_cfg)
+    settings = replace(real_settings, llm=bad_llm, ingestion=new_ingestion)
 
     refiner = ChunkRefiner(settings)
     trace = TraceContext()

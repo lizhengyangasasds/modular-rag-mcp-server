@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
 from typing import Any
 
 import pytest
+
+# Helper used in every Popen() call so the child process emits UTF-8 on
+# both Windows (default codepage is GBK) and Linux. Without this, log lines
+# containing non-ASCII characters raise UnicodeDecodeError when the parent
+# reads stderr/stdout as text.
+_CHILD_ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
 
 def send_and_receive(
@@ -93,6 +100,9 @@ def test_mcp_server_initialize_stdio() -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=_CHILD_ENV,
     )
 
     request = {
@@ -138,6 +148,9 @@ def test_mcp_server_tools_list_stdio() -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=_CHILD_ENV,
     )
 
     requests = [

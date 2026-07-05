@@ -82,11 +82,13 @@ class AzureEmbedding(BaseEmbedding):
                 "set AZURE_OPENAI_API_KEY environment variable, or pass api_key parameter."
             )
 
-        # Azure endpoint: explicit parameter > settings.yaml > env var (fallback)
+        # Azure endpoint: explicit parameter > env var > settings.yaml
+        # Env var takes priority over settings so deployments can override the
+        # default baked into settings.yaml without editing the file.
         self.azure_endpoint = (
-            azure_endpoint or
-            getattr(settings.embedding, 'azure_endpoint', None) or
-            os.environ.get("AZURE_OPENAI_ENDPOINT")
+            azure_endpoint
+            or os.environ.get("AZURE_OPENAI_ENDPOINT")
+            or getattr(settings.embedding, 'azure_endpoint', None)
         )
         if not self.azure_endpoint:
             raise ValueError(

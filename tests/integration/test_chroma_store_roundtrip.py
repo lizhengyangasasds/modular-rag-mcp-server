@@ -14,8 +14,14 @@ from src.libs.vector_store.chroma_store import ChromaStore
 
 @pytest.fixture
 def temp_chroma_dir():
-    """Create a temporary directory for ChromaDB storage."""
-    with tempfile.TemporaryDirectory() as tmpdir:
+    """Create a temporary directory for ChromaDB storage.
+
+    Cleanup errors (e.g. ``PermissionError`` on Windows where ChromaDB's
+    SQLite/lance files are still file-locked after the store closes) are
+    ignored — they don't affect test outcomes and just create noise on
+    local Windows runs. CI runs on Linux where this never happens.
+    """
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
         yield tmpdir
 
 

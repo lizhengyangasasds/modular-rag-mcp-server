@@ -78,17 +78,21 @@ class TraceService:
         """
         stages = trace.get("stages", [])
         timings: list[dict[str, Any]] = []
+        reserved = {"stage", "elapsed_ms", "timestamp"}
         for s in stages:
-            # The raw stage dict has: stage, timestamp, data (dict), elapsed_ms
-            # Extract the inner 'data' dict directly rather than flattening
-            stage_data = s.get("data", {})
-            if not isinstance(stage_data, dict):
-                stage_data = {}
+            # Raw stage dict layout: stage, timestamp, data, elapsed_ms
+            # Merge top-level extras (method, provider, …) into the data dict
+            # so dashboards can read e.g. data["method"] uniformly.
+            inner = s.get("data", {})
+            if not isinstance(inner, dict):
+                inner = {}
+            extras = {k: v for k, v in s.items() if k not in reserved}
+            merged = {**extras, **inner}
             timings.append(
                 {
                     "stage_name": s.get("stage"),
                     "elapsed_ms": s.get("elapsed_ms", 0),
-                    "data": stage_data,
+                    "data": merged,
                 }
             )
         return timings

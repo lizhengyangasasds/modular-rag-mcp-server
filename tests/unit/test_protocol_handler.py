@@ -472,7 +472,14 @@ class TestServerProtocolHandlerIntegration:
             handler=search_handler,
         )
 
-        create_mcp_server("test-server", "1.0.0", protocol_handler=handler)
+        # The handler is pre-populated, so don't let create_mcp_server
+        # register its default toolset (which would conflict with ours).
+        create_mcp_server(
+            "test-server",
+            "1.0.0",
+            protocol_handler=handler,
+            register_tools=False,
+        )
 
         # Verify tools are accessible through protocol handler
         tools = handler.get_tool_schemas()

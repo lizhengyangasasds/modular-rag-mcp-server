@@ -222,4 +222,6 @@ class TestCoreRerankerTrace:
         expected = {"query_processing", "dense_retrieval", "sparse_retrieval", "fusion", "rerank"}
         assert expected.issubset(set(stage_names))
         assert trace.to_dict()["trace_type"] == "query"
-        assert trace.to_dict()["total_elapsed_ms"] > 0
+        # Fake components run in microseconds, so the monotonic delta can
+        # legitimately round to 0 ms. Assert non-negative instead of > 0.
+        assert trace.to_dict()["total_elapsed_ms"] >= 0

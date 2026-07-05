@@ -205,6 +205,11 @@ class TestPdfConversionCore:
         if not IMAGES_PDF.exists():
             pytest.skip(f"Test fixture not found: {IMAGES_PDF}")
 
+        # Image extraction depends on PyMuPDF, which is an optional
+        # dependency. Skip cleanly when it is not installed rather than
+        # reporting a hard failure.
+        pytest.importorskip("pymupdf")
+
         loader = PdfLoader(extract_images=True)
         doc = loader.load(IMAGES_PDF)
 

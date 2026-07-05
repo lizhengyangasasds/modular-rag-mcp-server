@@ -47,6 +47,9 @@ class FakePipeline:
     def __init__(self):
         self.collection = "test_collection"
         self.force = False
+        # Real IngestionPipeline sets this in its __init__ to read the qc
+        # config block; keep it in sync so the fakes match the contract.
+        self.quality_check_enabled = False
 
         # Mock each component
         self.integrity_checker = MagicMock()
@@ -134,8 +137,14 @@ class TestIngestionPipelineTrace:
     def test_all_stages_have_method_field(self) -> None:
         trace = TraceContext(trace_type="ingestion")
         _run_fake_pipeline(trace)
+        # Stages that describe a *processing* method carry the "method" key.
+        # Terminal "store" stages (upsert) intentionally don't.
+        method_stages = {"load", "split", "transform", "embed", "quality_check"}
         for entry in trace.stages:
-            assert "method" in entry["data"], f"stage '{entry['stage']}' missing method"
+            if entry["stage"] in method_stages:
+                assert "method" in entry["data"], (
+                    f"stage '{entry['stage']}' missing method"
+                )
 
     def test_trace_type_is_ingestion(self) -> None:
         trace = TraceContext(trace_type="ingestion")

@@ -31,6 +31,56 @@ SUPPORTED_METRICS = {FAITHFULNESS, ANSWER_RELEVANCY, CONTEXT_PRECISION}
 
 def _import_ragas() -> None:
     """Validate that ragas is importable, raising a clear error if not."""
+    # Ragas 0.4.x unconditionally imports langchain_community.chat_models.vertexai
+    # and langchain_community.llms.VertexAI at module-import time, but those
+    # modules were removed in langchain-community >= 0.3 (the package is being
+    # sunset and integrations are being split into standalone packages).
+    #
+    # We pre-stub those broken imports with harmless placeholder classes so
+    # that `import ragas` succeeds on modern dependency sets.  Real VertexAI
+    # usage is never reached in this project (we only consume the
+    # `InstructorLLM` / `llm_factory` path), so a no-op stub is sufficient.
+    import sys
+    import types
+
+    def _make_unavailable_stub(cls_name: str) -> Any:
+        class _Unavailable:  # pragma: no cover - never instantiated
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                raise ImportError(
+                    f"{cls_name} is unavailable: langchain_community >= 0.3 "
+                    "no longer ships this module."
+                )
+
+        _Unavailable.__name__ = cls_name
+        return _Unavailable
+
+    # 1. `from langchain_community.chat_models.vertexai import ChatVertexAI`
+    sys.modules.setdefault(
+        "langchain_community.chat_models",
+        types.ModuleType("langchain_community.chat_models"),
+    )
+    vertexai_chat = types.ModuleType(
+        "langchain_community.chat_models.vertexai"
+    )
+    vertexai_chat.ChatVertexAI = _make_unavailable_stub("ChatVertexAI")
+    sys.modules["langchain_community.chat_models.vertexai"] = vertexai_chat
+
+    # 2. `from langchain_community.llms import VertexAI`
+    # The parent package may not yet be importable; create a stub if needed.
+    lc_llms_pkg = sys.modules.get("langchain_community")
+    if lc_llms_pkg is None or not hasattr(lc_llms_pkg, "__path__"):
+        # langchain_community itself isn't loaded yet; create a real module
+        # so submodule imports (`from langchain_community.llms import …`)
+        # can resolve.
+        import langchain_community  # noqa: F401  - ensures parent exists
+    lc_llms = sys.modules.get("langchain_community.llms")
+    if lc_llms is None:
+        lc_llms = types.ModuleType("langchain_community.llms")
+        lc_llms.__path__ = []  # type: ignore[attr-defined]
+        sys.modules["langchain_community.llms"] = lc_llms
+    if not hasattr(lc_llms, "VertexAI"):
+        lc_llms.VertexAI = _make_unavailable_stub("VertexAI")  # type: ignore[attr-defined]
+
     try:
         import ragas  # noqa: F401
     except ImportError as exc:

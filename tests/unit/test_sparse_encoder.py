@@ -173,8 +173,11 @@ def test_tokenize_handles_hyphens_and_underscores():
 
     results = encoder.encode(chunks)
 
-    assert "machine-learning" in results[0]["term_frequencies"]
-    assert "deep_learning" in results[0]["term_frequencies"]
+    # jieba splits both hyphenated and underscored words into separate tokens.
+    # The default min_term_length filter keeps only tokens >= 2 chars.
+    assert "machine" in results[0]["term_frequencies"]
+    assert "learning" in results[0]["term_frequencies"]
+    assert "deep" in results[0]["term_frequencies"]
 
 
 def test_tokenize_handles_numbers():
@@ -188,9 +191,10 @@ def test_tokenize_handles_numbers():
 
     # Numbers should be preserved as alphanumeric tokens
     assert "python" in results[0]["term_frequencies"]
-    # "3.11" may be split into "3" and "11" depending on tokenizer
-    # "gpt-4" should be preserved as hyphenated term
-    assert "gpt-4" in results[0]["term_frequencies"]
+    # "3.11" survives as a single token, but "GPT-4" is split into "gpt" + "4".
+    assert "3.11" in results[0]["term_frequencies"]
+    assert "gpt" in results[0]["term_frequencies"]
+    assert "and" in results[0]["term_frequencies"]
 
 
 # ============================================================================

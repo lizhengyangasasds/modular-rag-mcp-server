@@ -27,7 +27,9 @@ def mock_settings_openai() -> Any:
     settings.embedding.provider = "openai"
     settings.embedding.model = "text-embedding-3-small"
     settings.embedding.dimensions = 1536
-    settings.embedding.base_url = None  # No base_url in settings by default
+    settings.embedding.base_url = None
+    settings.embedding.api_key = None
+    settings.embedding.azure_endpoint = None
     return settings
 
 
@@ -42,6 +44,8 @@ def mock_settings_azure() -> Any:
     settings.embedding.azure_endpoint = "https://my-resource.openai.azure.com/"
     settings.embedding.api_version = "2024-02-01"
     settings.embedding.dimensions = None
+    settings.embedding.api_key = None
+    settings.embedding.base_url = None
     return settings
 
 
@@ -332,7 +336,17 @@ class TestAzureEmbedding:
         for each batch. The client should be created once and cached.
         """
         mock_client = Mock()
-        mock_client.embeddings.create.return_value = mock_openai_response
+
+        def _create_response(inputs: list[str]) -> Mock:
+            resp = Mock()
+            resp.data = [Mock(embedding=[0.1] * 4) for _ in inputs]
+            return resp
+
+        # Return a response whose length matches each call's input length.
+        def _side_effect(**kwargs: Any) -> Mock:
+            return _create_response(kwargs["input"])
+
+        mock_client.embeddings.create.side_effect = _side_effect
         mock_azure_class.return_value = mock_client
 
         embedding = AzureEmbedding(

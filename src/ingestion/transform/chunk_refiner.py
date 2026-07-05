@@ -124,12 +124,21 @@ class ChunkRefiner(BaseTransform):
                 if llm_refined_text:
                     refined_text = llm_refined_text
                     refined_by = "llm"
+                    error = None
                 else:
                     refined_text = rule_refined_text
                     refined_by = "rule"
+                    # Preserve the LLM-failed marker on the chunk so the
+                    # caller can distinguish rule-only output from a
+                    # graceful LLM fallback.
+                    if chunk.metadata is None:
+                        chunk.metadata = {}
+                    chunk.metadata['refine_fallback_reason'] = "llm_failed"
+                    error = "llm_failed"
             else:
                 refined_text = rule_refined_text
                 refined_by = "rule"
+                error = None
 
             refined_chunk = Chunk(
                 id=chunk.id,
@@ -140,7 +149,7 @@ class ChunkRefiner(BaseTransform):
                 },
                 source_ref=chunk.source_ref
             )
-            return (refined_chunk, refined_by, None)
+            return (refined_chunk, refined_by, error)
 
         except Exception as e:
             logger.error(f"Failed to refine chunk {chunk.id}: {e}")
