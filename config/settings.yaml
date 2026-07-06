@@ -110,7 +110,7 @@ ingestion:
     fail_on_scanned: false             # 扫描件是否直接抛出异常（false 则记录警告后继续）
 
   chunk_refiner:
-    use_llm: true
+    use_llm: false
 
   metadata_enricher:
-    use_llm: true
+    use_llm: false

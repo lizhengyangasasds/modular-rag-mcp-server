@@ -37,6 +37,7 @@ from src.ingestion.transform.image_captioner import ImageCaptioner
 from src.ingestion.transform.metadata_enricher import MetadataEnricher
 from src.libs.embedding.embedding_factory import EmbeddingFactory
 from src.libs.loader.file_integrity import SQLiteIntegrityChecker
+from src.libs.loader.markdown_loader import MarkdownLoader
 from src.libs.loader.pdf_loader import PdfLoader
 from src.libs.loader.pdf_quality_checker import DocumentQualityError, PdfQualityChecker
 from src.libs.redis import EmbeddingCache, LLMResponseCache, SessionMemory
@@ -147,11 +148,15 @@ class IngestionPipeline:
         self.integrity_checker = SQLiteIntegrityChecker(db_path=str(resolve_path("data/db/ingestion_history.db")))
         logger.info("  ✓ FileIntegrityChecker initialized")
 
-        # Stage 2: Loader + Quality Check
-        self.loader = PdfLoader(
+        # Stage 2: Loaders + Quality Check
+        # PdfLoader: only for PDF files
+        self._pdf_loader = PdfLoader(
             extract_images=True,
             image_storage_dir=str(resolve_path(f"data/images/{collection}"))
         )
+        # MarkdownLoader: for .md / .txt / .markdown
+        self._md_loader = MarkdownLoader()
+
         qc_cfg = getattr(settings.ingestion, "quality_check", None) or {}
         self.quality_checker = PdfQualityChecker(
             min_valid_ratio=qc_cfg.get("min_valid_ratio", 0.80),
@@ -160,7 +165,7 @@ class IngestionPipeline:
             fail_on_scanned=qc_cfg.get("fail_on_scanned", False),
         )
         self.quality_check_enabled = qc_cfg.get("enabled", True)
-        logger.info(f"  ✓ PdfLoader initialized (quality_check={'ON' if self.quality_check_enabled else 'OFF'})")
+        logger.info(f"  ✓ Loaders initialized (quality_check={'ON' if self.quality_check_enabled else 'OFF'})")
 
         # Stage 3: Chunker
         self.chunker = DocumentChunker(settings)
@@ -268,8 +273,10 @@ class IngestionPipeline:
             logger.info("\n📄 Stage 2: Document Loading")
             _notify("load", 2)
 
+            loader = self._pdf_loader if file_path.suffix.lower() == ".pdf" else self._md_loader
+            loader_name = "pdf" if file_path.suffix.lower() == ".pdf" else "markdown"
             _t0 = time.monotonic()
-            document = self.loader.load(str(file_path))
+            document = loader.load(str(file_path))
             _elapsed = (time.monotonic() - _t0) * 1000.0
 
             text_preview = document.text[:200].replace('\n', ' ') + "..." if len(document.text) > 200 else document.text
@@ -287,7 +294,7 @@ class IngestionPipeline:
             }
             if trace is not None:
                 trace.record_stage("load", {
-                    "method": "markitdown",
+                    "method": loader_name,
                     "doc_id": document.id,
                     "text_length": len(document.text),
                     "image_count": image_count,
@@ -297,7 +304,8 @@ class IngestionPipeline:
             # ─────────────────────────────────────────────────────────────
             # Stage 2b: Quality Check (between load and chunk)
             # ─────────────────────────────────────────────────────────────
-            if self.quality_check_enabled:
+            # Quality check is only applicable to PDF files
+            if self.quality_check_enabled and file_path.suffix.lower() == ".pdf":
                 logger.info("\n🔍 Stage 2b: PDF Quality Check")
                 _notify("quality_check", 2)
 
@@ -479,6 +487,24 @@ class IngestionPipeline:
             # ─────────────────────────────────────────────────────────────
             # Stage 6: Storage
             # ─────────────────────────────────────────────────────────────
+            # ─────────────────────────────────────────────────────────────
+            # Stage 6: Storage
+            # ─────────────────────────────────────────────────────────────
+            # When force=True we must delete any pre-existing data for this
+            # file so that re-ingestion replaces (not duplicates) the chunks.
+            if self.force:
+                logger.info("  ⚠️  Force mode: cleaning up old data before writing...")
+                try:
+                    deleted = self.vector_upserter.delete_by_doc_hash(document.metadata["doc_hash"])
+                    logger.info(f"      Removed {deleted} stale vectors from ChromaDB")
+                except Exception as exc:
+                    logger.warning(f"      Vector cleanup failed (continuing anyway): {exc}")
+                try:
+                    self.bm25_indexer.remove_document(document.metadata["doc_hash"], self.collection)
+                    logger.info("      Removed stale BM25 entries")
+                except Exception as exc:
+                    logger.warning(f"      BM25 cleanup failed (continuing anyway): {exc}")
+
             logger.info("\n💾 Stage 6: Storage")
             _notify("upsert", 6)
 

@@ -70,6 +70,20 @@ class VectorUpserter:
             kwargs['collection_name'] = collection_name
         self.vector_store = VectorStoreFactory.create(settings, **kwargs)
 
+    def delete_by_doc_hash(self, doc_hash: str) -> int:
+        """Delete all vectors associated with a document hash.
+
+        This is used when re-ingesting a file with ``force=True`` to clean up
+        stale chunks before writing fresh ones.
+
+        Args:
+            doc_hash: The SHA256 hash of the source file.
+
+        Returns:
+            Number of records deleted.
+        """
+        return self.vector_store.delete_by_metadata({"doc_hash": doc_hash})
+
     def upsert(
         self,
         chunks: list[Chunk],

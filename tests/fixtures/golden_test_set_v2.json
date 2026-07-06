@@ -1,0 +1,134 @@
+{
+  "description": "Golden test set covering all documents in knowledge_hub: technical notes, API reference, system design, performance benchmark, and deployment guide. Tests hybrid search quality across project-specific queries.",
+  "version": "1.1",
+  "source": "knowledge_hub collection (5 documents)",
+  "total_chunks": 2436,
+  "test_cases": [
+    {
+      "query": "RRF 混合搜索 Reciprocal Rank Fusion 的原理和 k 参数选择",
+      "expected_chunk_ids": [
+        "571ce262_0008_0807ea86",
+        "571ce262_0009_2d95d94d",
+        "d9f96763_0009_05c7a49a"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\technical_notes.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\system_design.md"
+      ],
+      "reference_answer": "RRF（Reciprocal Rank Fusion）通过 Reciprocal Rank 算法融合向量和 BM25 两种召回结果。公式为 RRF_score(d) = Σ 1/(k + rank_i(d))，k=60 是推荐值，用于平衡两种召回方式的贡献。"
+    },
+    {
+      "query": "Ingestion Pipeline 文档摄取的完整流程是什么",
+      "expected_chunk_ids": [
+        "571ce262_0003_e93bd9b3",
+        "571ce262_0007_a1b789e5",
+        "d9f96763_0007_e5622301"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\technical_notes.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\system_design.md"
+      ],
+      "reference_answer": "Ingestion Pipeline 分为六个阶段：Load（文件加载）→ Split（文档切分）→ Transform（语义增强：refine/enrich/caption）→ Encode（dense+sparse 向量化）→ Storage（ChromaDB + BM25 + ImageStorage + History）。"
+    },
+    {
+      "query": "Docker docker-compose 部署 Modular RAG 的完整步骤",
+      "expected_chunk_ids": [
+        "68519f10_0003_54dcf932",
+        "68519f10_0004_986eaf3c",
+        "68519f10_0000_784cabb4"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\deployment_guide.md"
+      ],
+      "reference_answer": "Docker 部署需要 Dockerfile 和 docker-compose.yml，compose 文件包含 rag-server 和 redis 两个服务。使用 docker-compose up -d 启动，通过 docker-compose logs 查看日志。"
+    },
+    {
+      "query": "性能基准测试 Embedding GPU 加速效果如何",
+      "expected_chunk_ids": [
+        "79295c07_0001_3dc21e37",
+        "d9f96763_0018_75ee2ecf",
+        "571ce262_0015_ad44c05f"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\performance_benchmark.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\system_design.md"
+      ],
+      "reference_answer": "GPU 加速 Embedding 效果显著：RTX 3060 比 CPU 快 15 倍（180 chunks/s vs 12 chunks/s），A100 可达 1200 chunks/s。Embedding 是本地推理的主要瓶颈。"
+    },
+    {
+      "query": "工厂模式如何实现 LLM Embedding 的可插拔架构",
+      "expected_chunk_ids": [
+        "d9f96763_0005_c78a11a6",
+        "571ce262_0013_633616a8",
+        "5204d508_0010_a3067ebd"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\system_design.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\technical_notes.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\api_reference.md"
+      ],
+      "reference_answer": "通过工厂模式 + 抽象接口实现可插拔。定义 BaseLLM、BaseEmbedding 等抽象基类，具体实现（DeepSeekLLM、HuggingFaceEmbedding）注册到工厂，运行时通过配置字符串动态创建，新增 Provider 无需修改调用方代码。"
+    },
+    {
+      "query": "ChromaDB 和 Qdrant 的对比，为什么选 ChromaDB",
+      "expected_chunk_ids": [
+        "d9f96763_0011_afa0c7e3",
+        "79295c07_0005_b98515c5"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\system_design.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\performance_benchmark.md"
+      ],
+      "reference_answer": "选择 ChromaDB 的原因：本地 + 轻量，零配置，Python 原生 SDK，Metadata 过滤完善。虽然性能不如 Qdrant/Milvus，但完全满足本地开发场景，未来扩展到分布式只需迁移到 Qdrant。"
+    },
+    {
+      "query": "chunk_size overlap 参数如何调优",
+      "expected_chunk_ids": [
+        "79295c07_0004_b959f0bf",
+        "571ce262_0004_b959f0bf"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\performance_benchmark.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\technical_notes.md"
+      ],
+      "reference_answer": "通用场景推荐 chunk_size=1000、overlap=200。overlap=0 时跨 chunk 召回率约 68%，overlap=200 时提升至 83%（+15%），overlap=400 时收益递减（仅再+5%）。"
+    },
+    {
+      "query": "BM25 关键词检索和向量检索各自优缺点",
+      "expected_chunk_ids": [
+        "d9f96763_0009_05c7a49a",
+        "571ce262_0006_57383233"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\system_design.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\technical_notes.md"
+      ],
+      "reference_answer": "向量检索优点：理解语义相似性；缺点：对专有名词召回依赖训练语料。BM25 优点：精确关键词匹配；缺点：无法理解同义词。两者互补，Hybrid Search = 语义 + 关键词 = 全覆盖。"
+    },
+    {
+      "query": "MCP 协议工具列表和 JSON-RPC 调用格式",
+      "expected_chunk_ids": [
+        "571ce262_0012_d98da654",
+        "571ce262_0001_a4c53836",
+        "5204d508_0002_f025317f"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\technical_notes.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\api_reference.md"
+      ],
+      "reference_answer": "MCP 工具包括 ingest_documents、query_knowledge、list_collections、delete_documents、resync_document、deploy 等。使用 JSON-RPC 2.0 协议调用，method 为 tools/call，参数包含 name 和 arguments。"
+    },
+    {
+      "query": "Redis 缓存策略 Embedding 和 LLM Response 缓存",
+      "expected_chunk_ids": [
+        "571ce262_0015_ad44c05f",
+        "d9f96763_0012_afa0c7e3"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\technical_notes.md",
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\system_design.md"
+      ],
+      "reference_answer": "Redis 三层缓存：Embedding Cache（TTL=7天）、LLM Response Cache（TTL=1天）、Session Memory（TTL=1小时）。Embedding 缓存命中时 P50 延迟从 850ms 降至 45ms（19倍提升）。Redis 不可用时自动降级为无缓存模式。"
+    }
+  ]
+}
