@@ -13,13 +13,18 @@ and deterministic.
 
 from __future__ import annotations
 
+import importlib.util
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Check at module-load time whether ragas is available
+_ragas_available = importlib.util.find_spec("ragas") is not None
+
 
 class TestRagasEvaluatorInit:
     """Tests for RagasEvaluator initialisation."""
+    pytestmark = pytest.mark.skipif(not _ragas_available, reason="ragas not installed")
 
     def test_init_default_metrics(self) -> None:
         from src.observability.evaluation.ragas_evaluator import RagasEvaluator
@@ -75,6 +80,7 @@ class TestRagasImportCheck:
 
 class TestRagasEvaluatorValidation:
     """Tests for input validation in evaluate()."""
+    pytestmark = pytest.mark.skipif(not _ragas_available, reason="ragas not installed")
 
     def test_empty_query_raises(self) -> None:
         from src.observability.evaluation.ragas_evaluator import RagasEvaluator
@@ -107,6 +113,7 @@ class TestRagasEvaluatorValidation:
 
 class TestRagasEvaluatorTextExtraction:
     """Tests for _extract_texts helper."""
+    pytestmark = pytest.mark.skipif(not _ragas_available, reason="ragas not installed")
 
     def test_extract_from_dicts(self) -> None:
         from src.observability.evaluation.ragas_evaluator import RagasEvaluator
@@ -141,6 +148,7 @@ class TestRagasEvaluatorTextExtraction:
 
 class TestRagasEvaluatorEvaluate:
     """Tests for evaluate() with mocked Ragas backend."""
+    pytestmark = pytest.mark.skipif(not _ragas_available, reason="ragas not installed")
 
     def _make_mock_ragas_result(self, scores: dict[str, float]) -> MagicMock:
         """Create a mock ragas evaluation result."""
@@ -218,6 +226,7 @@ class TestRagasEvaluatorEvaluate:
 
 class TestRagasEvaluatorFactory:
     """Tests for factory integration."""
+    pytestmark = pytest.mark.skipif(not _ragas_available, reason="ragas not installed")
 
     def test_factory_creates_ragas_evaluator(self) -> None:
         from src.libs.evaluator.evaluator_factory import EvaluatorFactory

@@ -90,9 +90,11 @@ def _make_fake_pipeline(
     fp.integrity_checker.should_skip.return_value = False
     fp.integrity_checker.last_error = None
 
-    # Stage 2: loader (real Document, no images)
-    fp.loader = MagicMock()
-    fp.loader.load.return_value = Document(
+    # Stage 2: loaders (updated for new dual-loader architecture)
+    fp._pdf_loader = MagicMock()
+    fp._md_loader = MagicMock()
+    # Tests pass a single .pdf file, so pdf loader is used
+    fp._pdf_loader.load.return_value = Document(
         id="doc1",
         text="Hello world. " * 50,
         metadata={"source_path": "test.pdf", "doc_type": "pdf", "doc_hash": "hash_qc"},
@@ -218,6 +220,9 @@ class TestStage2bScannedPdf:
 
         # Patch the loader to load from the real scanned.pdf
         fp = _make_fake_pipeline(quality_check_enabled=True, quality_report=None)
+        # Add loaders (needed by pipeline.run() to reach quality_check stage)
+        fp._pdf_loader = MagicMock()
+        fp._md_loader = MagicMock()
         # Override: use the REAL PdfQualityChecker for this single test
         fp.quality_checker = PdfQualityChecker(fail_on_scanned=False)
         # Provide pypdf-extracted pages manually (text-only path, PyMuPDF-free)
