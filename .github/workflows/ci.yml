@@ -82,6 +82,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install -e .
           pip install -e ".[dev]"
           # mcp package is required by some test files but may not be in the
           # base install on all environments. Install explicitly to avoid
@@ -137,6 +138,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install -e .
           pip install -e ".[dev]"
           pip install modelcontextprotocol 2>/dev/null || true
 
@@ -174,6 +176,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install -e .
           pip install -e ".[dev]"
           pip install modelcontextprotocol 2>/dev/null || true
 
