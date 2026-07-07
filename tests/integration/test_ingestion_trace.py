@@ -56,8 +56,10 @@ class FakePipeline:
         self.integrity_checker.compute_sha256.return_value = "abc123"
         self.integrity_checker.should_skip.return_value = False
 
-        self.loader = MagicMock()
-        self.loader.load.return_value = _fake_document()
+        # Updated for new dual-loader architecture
+        self._pdf_loader = MagicMock()
+        self._md_loader = MagicMock()
+        self._pdf_loader.load.return_value = _fake_document()
 
         self.chunker = MagicMock()
         chunks = _fake_chunks()
