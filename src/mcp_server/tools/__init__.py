@@ -148,21 +148,6 @@ from src.mcp_server.tools.qa_tester import (
 from src.mcp_server.tools.qa_tester import (
     register_tool as register_qa_tester,
 )
-from src.mcp_server.tools.query_knowledge_hub import (
-    TOOL_DESCRIPTION as QUERY_KNOWLEDGE_HUB_DESCRIPTION,
-)
-from src.mcp_server.tools.query_knowledge_hub import (
-    TOOL_INPUT_SCHEMA as QUERY_KNOWLEDGE_HUB_SCHEMA,
-)
-from src.mcp_server.tools.query_knowledge_hub import (
-    TOOL_NAME as QUERY_KNOWLEDGE_HUB_NAME,
-)
-from src.mcp_server.tools.query_knowledge_hub import (
-    QueryKnowledgeHubTool,
-)
-from src.mcp_server.tools.query_knowledge_hub import (
-    register_tool as register_query_knowledge_hub,
-)
 from src.mcp_server.tools.query_and_answer import (
     TOOL_DESCRIPTION as QUERY_AND_ANSWER_DESCRIPTION,
 )
@@ -177,6 +162,21 @@ from src.mcp_server.tools.query_and_answer import (
 )
 from src.mcp_server.tools.query_and_answer import (
     register_tool as register_query_and_answer,
+)
+from src.mcp_server.tools.query_knowledge_hub import (
+    TOOL_DESCRIPTION as QUERY_KNOWLEDGE_HUB_DESCRIPTION,
+)
+from src.mcp_server.tools.query_knowledge_hub import (
+    TOOL_INPUT_SCHEMA as QUERY_KNOWLEDGE_HUB_SCHEMA,
+)
+from src.mcp_server.tools.query_knowledge_hub import (
+    TOOL_NAME as QUERY_KNOWLEDGE_HUB_NAME,
+)
+from src.mcp_server.tools.query_knowledge_hub import (
+    QueryKnowledgeHubTool,
+)
+from src.mcp_server.tools.query_knowledge_hub import (
+    register_tool as register_query_knowledge_hub,
 )
 from src.mcp_server.tools.resume_writer import (
     TOOL_DESCRIPTION as RESUME_WRITER_DESCRIPTION,
