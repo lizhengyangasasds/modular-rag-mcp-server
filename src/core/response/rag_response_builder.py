@@ -13,15 +13,13 @@ returned through the MCP protocol alongside structured citations.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from src.core.response.citation_generator import Citation, CitationGenerator
 from src.core.response.response_builder import MCPToolResponse
-from src.core.settings import resolve_path
 
 if TYPE_CHECKING:
-    from src.libs.llm.base_llm import BaseLLM, ChatResponse, Message
+    from src.libs.llm.base_llm import BaseLLM, Message
 
 
 logger = logging.getLogger(__name__)
@@ -158,8 +156,6 @@ class RAGResponseBuilder:
         Returns:
             Formatted context string for the prompt.
         """
-        from src.core.types import RetrievalResult
-
         lines: list[str] = []
         display_chunks = min(len(results), self.max_context_chunks)
 

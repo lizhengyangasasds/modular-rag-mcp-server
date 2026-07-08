@@ -34,7 +34,6 @@ from src.core.types import RetrievalResult
 
 if TYPE_CHECKING:
     from src.core.query_engine.hybrid_search import HybridSearch
-    from src.libs.llm.base_llm import BaseLLM
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +97,7 @@ class QueryAndAnswerTool:
     def __init__(
         self,
         settings: Settings | None = None,
-        hybrid_search: "HybridSearch | None" = None,
+        hybrid_search: HybridSearch | None = None,
         rag_builder: RAGResponseBuilder | None = None,
         enable_rerank: bool = True,
         default_collection: str = "knowledge_hub",

@@ -152,7 +152,7 @@ class QueryKnowledgeHubTool:
         return self._settings
 
     @property
-    def hybrid_search(self) -> "HybridSearch":
+    def hybrid_search(self) -> HybridSearch:
         """Get the initialized HybridSearch instance.
 
         This property allows external tools to reuse the fully initialized
