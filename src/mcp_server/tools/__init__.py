@@ -2,8 +2,8 @@
 MCP Server Tools.
 
 This package contains the MCP tool definitions exposed to clients.
-All 12 tools are organized into 4 categories:
-- RAG Core: query_knowledge_hub, list_collections, get_document_summary, ingest_documents
+All 14 tools are organized into 4 categories:
+- RAG Core: query_knowledge_hub, query_and_answer, list_collections, get_document_summary, ingest_documents
 - Developer Tools: auto_coder, qa_tester, code_reviewer
 - Project Management: setup, package, deploy
 - Document Tools: resume_writer, doc_generator
@@ -163,6 +163,21 @@ from src.mcp_server.tools.query_knowledge_hub import (
 from src.mcp_server.tools.query_knowledge_hub import (
     register_tool as register_query_knowledge_hub,
 )
+from src.mcp_server.tools.query_and_answer import (
+    TOOL_DESCRIPTION as QUERY_AND_ANSWER_DESCRIPTION,
+)
+from src.mcp_server.tools.query_and_answer import (
+    TOOL_INPUT_SCHEMA as QUERY_AND_ANSWER_SCHEMA,
+)
+from src.mcp_server.tools.query_and_answer import (
+    TOOL_NAME as QUERY_AND_ANSWER_NAME,
+)
+from src.mcp_server.tools.query_and_answer import (
+    QueryAndAnswerTool,
+)
+from src.mcp_server.tools.query_and_answer import (
+    register_tool as register_query_and_answer,
+)
 from src.mcp_server.tools.resume_writer import (
     TOOL_DESCRIPTION as RESUME_WRITER_DESCRIPTION,
 )
@@ -220,6 +235,12 @@ __all__ = [
     "QUERY_KNOWLEDGE_HUB_SCHEMA",
     "QueryKnowledgeHubTool",
     "register_query_knowledge_hub",
+
+    "QUERY_AND_ANSWER_NAME",
+    "QUERY_AND_ANSWER_DESCRIPTION",
+    "QUERY_AND_ANSWER_SCHEMA",
+    "QueryAndAnswerTool",
+    "register_query_and_answer",
 
     "LIST_COLLECTIONS_NAME",
     "LIST_COLLECTIONS_DESCRIPTION",

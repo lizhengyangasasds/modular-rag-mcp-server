@@ -202,6 +202,10 @@ def _register_default_tools(protocol_handler: ProtocolHandler) -> None:
     from src.mcp_server.tools.query_knowledge_hub import register_tool as register_query_tool
     register_query_tool(protocol_handler)
 
+    # Import and register query_and_answer tool (RAG generation)
+    from src.mcp_server.tools.query_and_answer import register_tool as register_qaa_tool
+    register_qaa_tool(protocol_handler)
+
     # Import and register list_collections tool
     from src.mcp_server.tools.list_collections import register_tool as register_list_tool
     register_list_tool(protocol_handler)

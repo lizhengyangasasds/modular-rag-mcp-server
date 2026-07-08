@@ -151,6 +151,24 @@ class QueryKnowledgeHubTool:
             self._settings = load_settings()
         return self._settings
 
+    @property
+    def hybrid_search(self) -> "HybridSearch":
+        """Get the initialized HybridSearch instance.
+
+        This property allows external tools to reuse the fully initialized
+        HybridSearch (dense + sparse + fusion) without duplicating the
+        collection-aware initialization logic.
+
+        Raises:
+            RuntimeError: If called before execute() has been called at least once.
+        """
+        if not self._initialized or self._hybrid_search is None:
+            raise RuntimeError(
+                "HybridSearch not initialized. Call execute() first "
+                "to ensure the search components are ready."
+            )
+        return self._hybrid_search
+
     def _ensure_initialized(self, collection: str) -> None:
         """Ensure search components are initialized for the given collection.
 

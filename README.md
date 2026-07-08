@@ -1,6 +1,6 @@
 # Modular RAG MCP Server
 
-> 基于 Python 的本地私有化 RAG 系统，集成 DeepSeek 大模型，通过 MCP 协议对接 Cursor 等 AI 助手，提供知识库检索与 12 个定制工具。
+> 基于 Python 的本地私有化 RAG 系统，集成 DeepSeek 大模型，通过 MCP 协议对接 Cursor 等 AI 助手，提供知识库检索与 14 个定制工具（含 RAG 生成式问答）。
 
 **作者**: 李政扬  
 **仓库**: https://github.com/lizhengyangasasds/modular-rag-mcp-server
@@ -43,7 +43,7 @@
 |------|------|
 | **文档摄取** | PDF → 质量检查 → 分块 → 元数据增强 → 向量化 → 写入 Chroma + BM25 索引 |
 | **混合检索** | Dense（语义向量）+ Sparse（BM25）+ RRF 融合，可选 Rerank |
-| **MCP Server** | 标准 MCP 协议，暴露 12 个工具，可在 Cursor / Copilot 等客户端中使用 |
+| **MCP Server** | 标准 MCP 协议，暴露 14 个工具，可在 Cursor / Copilot 等客户端中使用 |
 | **可插拔架构** | LLM / Embedding / VectorStore 等通过 `config/settings.yaml` 切换 |
 | **本地 Embedding** | 默认 HuggingFace `all-MiniLM-L6-v2`，无需上传文档到云端做向量化 |
 | **可观测性** | 摄取与查询链路追踪，可选 Streamlit Dashboard 管理 |
@@ -166,6 +166,7 @@ python main.py
 | 工具 | 功能 | 说明 |
 |------|------|------|
 | `query_knowledge_hub` | 智能检索与问答 | 混合检索 + RRF 融合 + 引用返回 |
+| `query_and_answer` | **RAG 生成式问答** | 检索结果 + DeepSeek LLM 生成带 [n] 引用的完整回答 |
 | `ingest_documents` | 文档导入向量库 | 增量导入，支持 force 强制重导入 |
 | `list_collections` | 查看集合列表 | 显示集合名 + chunk 数量 |
 | `get_document_summary` | 获取文档摘要 | 按 doc_id 查文档元信息 |
@@ -755,7 +756,7 @@ python tests/fixtures/generate_qa_test_pdfs.py
 modular-rag-mcp-server/
 ├── config/
 │   ├── settings.yaml          # 统一配置（密钥通过 ${ENV_VAR} 引用 .env）
-│   └── prompts/               # Rerank / System prompts
+│   └── prompts/               # Rerank / RAG 生成 / System prompts
 ├── docs/
 │   └── screenshots/           # Dashboard 页面截图
 ├── documents/                 # 待导入文档目录（PDF/MD/TXT）
@@ -774,7 +775,7 @@ modular-rag-mcp-server/
 │   │   │   ├── sparse_retriever.py
 │   │   │   ├── reranker.py
 │   │   │   └── query_processor.py
-│   │   └── response/          # 响应构建（含引用格式）
+│   │   └── response/          # 响应构建（含引用格式 + RAG 生成式回答）
 │   ├── ingestion/
 │   │   ├── pipeline.py        # 摄取流水线（集成 PDF 质量检查）
 │   │   ├── storage/           # ChromaDB + BM25
@@ -793,7 +794,7 @@ modular-rag-mcp-server/
 │   ├── mcp_server/
 │   │   ├── server.py         # MCP 服务入口（stdio）
 │   │   ├── protocol_handler.py
-│   │   └── tools/            # 12 个 MCP 工具
+│   │   └── tools/            # 14 个 MCP 工具
 │   └── observability/         # 日志 + 追踪
 ├── scripts/
 │   ├── ingest.py             # 命令行导入工具
