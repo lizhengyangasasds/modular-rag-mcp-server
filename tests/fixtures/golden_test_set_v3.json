@@ -1,0 +1,219 @@
+{
+  "description": "Golden test set v3 — expected_chunk_ids are actual retrieval results from HybridSearch (oracle baseline). These are the chunks the system currently retrieves as most relevant. Used as ground truth for measuring retrieval stability and regression detection.",
+  "version": "3.0",
+  "source": "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf",
+  "total_chunks_in_collection": 2433,
+  "note": "Metrics measured with this test set reflect the CURRENT retrieval quality. As the system improves, expected_chunk_ids should be updated to maintain meaningful evaluation (oracle approach).",
+  "test_cases": [
+    {
+      "query": "什么是神经网络",
+      "expected_chunk_ids": [
+        "6eca2e4f_0115_6c1719f4",
+        "6eca2e4f_0113_fc2d4648",
+        "6eca2e4f_0688_117f7e9c",
+        "6eca2e4f_0953_42ef6868",
+        "6eca2e4f_1043_3f515039"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "神经网络是受人脑启发的计算模型，通过大量节点（神经元）之间的连接权重来学习数据表示。深度学习使用多层神经网络来学习分层表示。"
+    },
+    {
+      "query": "深度学习的历史趋势",
+      "expected_chunk_ids": [
+        "6eca2e4f_0130_ca3d6773",
+        "6eca2e4f_1040_80296e59",
+        "6eca2e4f_0131_84e0b553",
+        "6eca2e4f_0095_59c4e568",
+        "6eca2e4f_0096_e3e05d33"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "深度学习经历了三次浪潮：感知机时代（1950s-1980s）、联结主义时代（1980s-1990s）、2006年深度信念网络突破后至今的现代深度学习时代。"
+    },
+    {
+      "query": "卷积神经网络 CNN 的原理",
+      "expected_chunk_ids": [
+        "6eca2e4f_0774_19434199",
+        "6eca2e4f_0953_42ef6868",
+        "6eca2e4f_0129_05a617a5",
+        "6eca2e4f_0955_49b7f567",
+        "6eca2e4f_1297_5a8a406c"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "卷积神经网络使用卷积核在输入数据上滑动，通过权重共享减少参数数量，专门用于处理网格结构数据（如图像），能有效捕捉空间层次特征。"
+    },
+    {
+      "query": "循环神经网络 RNN",
+      "expected_chunk_ids": [
+        "6eca2e4f_0028_541e0788",
+        "6eca2e4f_1044_7224292f",
+        "6eca2e4f_1297_5a8a406c",
+        "6eca2e4f_1110_7d935b28",
+        "6eca2e4f_0129_05a617a5"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "循环神经网络通过在时间步之间共享参数来处理序列数据，利用展开的计算图表示信息在时间上的流动，适合处理变长序列任务。"
+    },
+    {
+      "query": "反向传播算法",
+      "expected_chunk_ids": [
+        "6eca2e4f_0637_3f9eca0f",
+        "6eca2e4f_0640_81485b4b",
+        "6eca2e4f_0609_5b298f79",
+        "6eca2e4f_0670_b9b400fc",
+        "6eca2e4f_0658_696e7418"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "反向传播算法通过链式法则计算损失函数对网络参数的梯度，从输出层向输入层逐层反向传播误差，是训练神经网络的核心算法。"
+    },
+    {
+      "query": "梯度下降优化算法",
+      "expected_chunk_ids": [
+        "6eca2e4f_0853_5a852df8",
+        "6eca2e4f_0836_c6e3d09d",
+        "6eca2e4f_0330_b3dbd333",
+        "6eca2e4f_0609_5b298f79",
+        "6eca2e4f_0863_3d90b2be"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "梯度下降通过沿损失函数梯度的负方向迭代更新参数来最小化损失，是神经网络训练的基础优化方法，包括批量、小批量和随机梯度下降变体。"
+    },
+    {
+      "query": "正则化方法",
+      "expected_chunk_ids": [
+        "6eca2e4f_0709_df9cbda6",
+        "6eca2e4f_0697_42221954",
+        "6eca2e4f_0609_5b298f79",
+        "6eca2e4f_0404_d594cc64",
+        "6eca2e4f_0463_d4251079"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "正则化方法用于防止神经网络过拟合，包括L2正则化（权重衰减）、Dropout、数据增强、早停等方法，通过增加模型的泛化能力。"
+    },
+    {
+      "query": "自编码器",
+      "expected_chunk_ids": [
+        "6eca2e4f_0611_1a49e378",
+        "6eca2e4f_1998_cc624573",
+        "6eca2e4f_1150_38b26f33",
+        "6eca2e4f_1414_854178cb",
+        "6eca2e4f_1402_9a2cabf7"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "自编码器是一种无监督学习模型，通过编码器将输入压缩为潜在表示，再由解码器重建输入，学习有用的特征表示。欠完备自编码器可学习数据分布的主要特征。"
+    },
+    {
+      "query": "Transformer 架构",
+      "expected_chunk_ids": [
+        "6eca2e4f_1121_d53cc8c9",
+        "6eca2e4f_1506_818c1bc1",
+        "68519f10_0010_837b81ae",
+        "6eca2e4f_1450_c8939435",
+        "6eca2e4f_1120_c9bee49e"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "Transformer是一种基于注意力机制的序列到序列架构，使用编码器-解码器结构，通过自注意力机制并行处理序列数据，取代了传统RNN的序列化处理方式。"
+    },
+    {
+      "query": "注意力机制",
+      "expected_chunk_ids": [
+        "6eca2e4f_1186_e3a2a5e2",
+        "6eca2e4f_1529_29cf5880",
+        "6eca2e4f_1330_f7f2cf25",
+        "6eca2e4f_1506_818c1bc1",
+        "6eca2e4f_0035_64e2cf63"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "注意力机制允许模型在生成输出时动态关注输入序列的不同部分，通过计算查询与键的相似度来分配权重，实现序列元素间的灵活依赖建模。"
+    },
+    {
+      "query": "Word2Vec 词嵌入",
+      "expected_chunk_ids": [
+        "6eca2e4f_1297_5a8a406c",
+        "6eca2e4f_1350_eb967970",
+        "6eca2e4f_1340_0375edfa",
+        "6eca2e4f_1506_818c1bc1",
+        "6eca2e4f_0529_cd2a3660"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "Word2Vec通过神经网络将词语映射到低维连续向量空间，捕捉词语之间的语义关系，是早期词嵌入方法的代表，被广泛应用于NLP任务的特征表示。"
+    },
+    {
+      "query": "批归一化 Batch Normalization",
+      "expected_chunk_ids": [
+        "6eca2e4f_2129_b470bb9a",
+        "6eca2e4f_0552_eb20babd",
+        "6eca2e4f_0563_d6f91c93",
+        "6eca2e4f_2266_814a16e9",
+        "6eca2e4f_1264_aea268a9"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "批归一化通过对每一批次的激活值进行均值和方差归一化，减轻内部协变量偏移问题，加速深度网络的训练收敛。"
+    },
+    {
+      "query": "Dropout 防止过拟合",
+      "expected_chunk_ids": [
+        "6eca2e4f_0811_0c11333f",
+        "6eca2e4f_0809_57358a9a",
+        "6eca2e4f_0810_11650325",
+        "6eca2e4f_1884_372ea874",
+        "6eca2e4f_0733_11ae6788"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "Dropout在训练时随机丢弃部分神经元及其连接，等效于训练大量不同子网络的集成，显著减少过拟合，是深度学习最广泛使用的正则化技术之一。"
+    },
+    {
+      "query": "链式法则",
+      "expected_chunk_ids": [
+        "6eca2e4f_0609_5b298f79",
+        "6eca2e4f_0624_09cf8254",
+        "6eca2e4f_0016_883ba04e",
+        "6eca2e4f_1018_70492d56",
+        "6eca2e4f_0223_0a761f05"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "链式法则是微积分的基本规则，用于计算复合函数的导数，在神经网络中通过反向传播算法实现，用于逐层计算每个参数对最终损失的梯度。"
+    },
+    {
+      "query": "激活函数",
+      "expected_chunk_ids": [
+        "6eca2e4f_0600_1e7c2a51",
+        "6eca2e4f_0611_1a49e378",
+        "6eca2e4f_0599_cbaa274b",
+        "6eca2e4f_1150_38b26f33",
+        "6eca2e4f_0973_d92c578c"
+      ],
+      "expected_sources": [
+        "C:\\Users\\Lenovo\\MODULAR-RAG-MCP-SERVER\\documents\\dlbook_cn_v0.5-beta.pdf"
+      ],
+      "reference_answer": "激活函数为神经网络引入非线性，常见的有Sigmoid、ReLU、Tanh等。ReLU及其变体（Leaky ReLU、PReLU）是现代深度学习最常用的激活函数。"
+    }
+  ]
+}
