@@ -19,10 +19,54 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
-# Default golden test set location
-DEFAULT_GOLDEN_SET = Path("tests/fixtures/golden_test_set.json")
+# Default golden test set location.
+#
+# v3 is the current oracle baseline: every test case has `expected_chunk_ids`
+# matching the actual chunk IDs produced by the most recent ingest of
+# dlbook_cn_v0.5-beta.pdf. v1/v2 are kept for reference but their chunk_ids
+# are stale (re-ingest produces new content-addressed hashes).
+DEFAULT_GOLDEN_SET = Path("tests/fixtures/golden_test_set_v3.json")
 # Evaluation results history file
 EVAL_HISTORY_PATH = Path("logs/eval_history.jsonl")
+
+
+def _golden_set_has_ground_truth(golden_path: Path) -> bool:
+    """Return True iff the golden set has at least one test case with a
+    non-empty `expected_chunk_ids` list.
+
+    Used to decide whether to show the "Custom Evaluator not ready" hint:
+    the hint only makes sense when the operator chose custom/composite AND
+    the chosen golden set has no usable ground-truth ids.
+    """
+    try:
+        with golden_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return False
+    test_cases = data.get("test_cases", []) if isinstance(data, dict) else []
+    return any(
+        isinstance(tc, dict)
+        and isinstance(tc.get("expected_chunk_ids"), list)
+        and len(tc["expected_chunk_ids"]) > 0
+        for tc in test_cases
+    )
+
+
+def _filter_supported_metrics(backend: str, requested: list[str]) -> list[str]:
+    """Return only the metrics supported by the chosen backend.
+
+    Settings may declare a superset of metrics (e.g. hit_rate + mrr +
+    faithfulness). If the operator picks a backend that only implements a
+    subset, drop the rest so the evaluator can be constructed. When the
+    backend cannot be introspected (e.g. ragas) we keep the requested list.
+    """
+    if backend == "custom":
+        from src.libs.evaluator.custom_evaluator import CustomEvaluator
+        supported = CustomEvaluator.SUPPORTED_METRICS
+        return [m for m in requested if m in supported]
+    # ragas / composite: metric filtering happens inside the evaluator;
+    # pass the full requested list and let it decide.
+    return list(requested)
 
 
 def render() -> None:
@@ -46,16 +90,6 @@ def render() -> None:
             index=0,
             key="eval_backend",
             help="Select which evaluator backend to use.",
-        )
-
-    # Show info/warning based on selected backend
-    if backend in ("custom", "composite"):
-        st.info(
-            "ℹ️ **Custom Evaluator** 尚未完成数据集准备，当前仅为预留接口。"
-            "Custom Evaluator 需要在 Golden Test Set 中填写 `expected_chunk_ids` "
-            "作为 ground truth 才能计算 hit_rate / MRR 指标。"
-            "目前建议使用 **ragas** 后端进行评估。",
-            icon="🚧",
         )
 
     with col2:
@@ -91,6 +125,22 @@ def render() -> None:
             f"⚠️ **Golden test set not found:** `{golden_path}`. "
             "Create a JSON file with test queries and expected results. "
             "See `tests/fixtures/golden_test_set.json` for the format."
+        )
+
+    # Show the "data not ready" hint only when the operator explicitly chose
+    # custom/composite AND the golden set has no usable ground-truth ids.
+    # v3 (the default) ships with `expected_chunk_ids` populated, so under
+    # normal use this hint stays hidden.
+    golden_has_gt = (
+        golden_path.exists() and _golden_set_has_ground_truth(golden_path)
+    )
+    if backend in ("custom", "composite") and not golden_has_gt:
+        st.info(
+            "ℹ️ **Custom Evaluator** 尚未完成数据集准备，当前仅为预留接口。"
+            "Custom Evaluator 需要在 Golden Test Set 中填写 `expected_chunk_ids` "
+            "作为 ground truth 才能计算 hit_rate / MRR 指标。"
+            "目前建议使用 **ragas** 后端进行评估。",
+            icon="🚧",
         )
 
     # ── Answer Input Section (for Ragas) ───────────────────────────
@@ -219,13 +269,31 @@ def _execute_evaluation(
     # Override evaluator provider from UI selection — build a new full
     # Settings object so that RagasEvaluator can still access .llm / .embedding.
     eval_settings = settings.evaluation
+    requested_metrics = (
+        list(eval_settings.metrics) if hasattr(eval_settings, "metrics") else []
+    )
+    # When the user picks a backend that does not support a metric in
+    # settings.yaml (e.g. settings lists `faithfulness` but the user picks
+    # the `custom` backend which only supports hit_rate / mrr), drop the
+    # unsupported ones so the run doesn't crash. The custom backend's
+    # SUPPORTED_METRICS is the source of truth.
+    overridden_metrics = _filter_supported_metrics(backend, requested_metrics)
     overridden_eval = type(eval_settings)(
         enabled=True,
         provider=backend,
-        metrics=eval_settings.metrics if hasattr(eval_settings, "metrics") else [],
+        metrics=overridden_metrics,
     )
     # Replace only the evaluation sub-config in the full settings
     settings_with_override = dc_replace(settings, evaluation=overridden_eval)
+
+    if requested_metrics and len(overridden_metrics) < len(requested_metrics):
+        logger.info(
+            "Backend '%s' does not support all configured metrics. "
+            "Using %s (dropped %s)",
+            backend,
+            overridden_metrics,
+            [m for m in requested_metrics if m not in overridden_metrics],
+        )
 
     evaluator = EvaluatorFactory.create(settings_with_override)
 
